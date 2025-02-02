@@ -43,10 +43,12 @@ class Parser
             '!' => ['precedence' => 50],
             '-' => ['precedence' => 500],
             '+' => ['precedence' => 500],
+            '~' => ['precedence' => 500],
         ];
         $this->binaryOperators = [
             'or' => ['precedence' => 10, 'associativity' => self::OPERATOR_LEFT],
             '||' => ['precedence' => 10, 'associativity' => self::OPERATOR_LEFT],
+            'xor' => ['precedence' => 12, 'associativity' => self::OPERATOR_LEFT],
             'and' => ['precedence' => 15, 'associativity' => self::OPERATOR_LEFT],
             '&&' => ['precedence' => 15, 'associativity' => self::OPERATOR_LEFT],
             '|' => ['precedence' => 16, 'associativity' => self::OPERATOR_LEFT],
@@ -67,6 +69,8 @@ class Parser
             'ends with' => ['precedence' => 20, 'associativity' => self::OPERATOR_LEFT],
             'matches' => ['precedence' => 20, 'associativity' => self::OPERATOR_LEFT],
             '..' => ['precedence' => 25, 'associativity' => self::OPERATOR_LEFT],
+            '<<' => ['precedence' => 25, 'associativity' => self::OPERATOR_LEFT],
+            '>>' => ['precedence' => 25, 'associativity' => self::OPERATOR_LEFT],
             '+' => ['precedence' => 30, 'associativity' => self::OPERATOR_LEFT],
             '-' => ['precedence' => 30, 'associativity' => self::OPERATOR_LEFT],
             '~' => ['precedence' => 40, 'associativity' => self::OPERATOR_LEFT],

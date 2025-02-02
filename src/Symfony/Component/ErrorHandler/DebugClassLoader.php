@@ -20,6 +20,7 @@ use PHPUnit\Framework\MockObject\Matcher\StatelessInvocation;
 use PHPUnit\Framework\MockObject\MockObject;
 use Prophecy\Prophecy\ProphecySubjectInterface;
 use ProxyManager\Proxy\ProxyInterface;
+use Symfony\Component\DependencyInjection\Argument\LazyClosure;
 use Symfony\Component\ErrorHandler\Internal\TentativeTypes;
 use Symfony\Component\VarExporter\LazyObjectInterface;
 
@@ -263,6 +264,7 @@ class DebugClassLoader
                     && !is_subclass_of($symbols[$i], LegacyProxy::class)
                     && !is_subclass_of($symbols[$i], MockInterface::class)
                     && !is_subclass_of($symbols[$i], IMock::class)
+                    && !(is_subclass_of($symbols[$i], LazyClosure::class) && str_contains($symbols[$i], "@anonymous\0"))
                 ) {
                     $loader->checkClass($symbols[$i]);
                 }
@@ -849,6 +851,30 @@ class DebugClassLoader
         $docTypes = [];
 
         foreach ($typesMap as $n => $t) {
+            if (str_contains($n, '::')) {
+                [$definingClass, $constantName] = explode('::', $n, 2);
+                $definingClass = match ($definingClass) {
+                    'self', 'static', 'parent' => $class,
+                    default => $definingClass,
+                };
+
+                if (!\defined($definingClass.'::'.$constantName)) {
+                    return;
+                }
+
+                $constant = new \ReflectionClassConstant($definingClass, $constantName);
+
+                if (\PHP_VERSION_ID >= 80300 && $constantType = $constant->getType()) {
+                    if ($constantType instanceof \ReflectionNamedType) {
+                        $n = $constantType->getName();
+                    } else {
+                        return;
+                    }
+                } else {
+                    $n = \gettype($constant->getValue());
+                }
+            }
+
             if ('null' === $n) {
                 $nullable = true;
                 continue;
@@ -872,7 +898,7 @@ class DebugClassLoader
                 continue;
             }
 
-            if (!isset($phpTypes[''])) {
+            if (!isset($phpTypes['']) && !\in_array($n, $phpTypes, true)) {
                 $phpTypes[] = $n;
             }
         }

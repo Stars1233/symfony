@@ -33,6 +33,7 @@ jobs:
             mode: low-deps
           - php: '8.3'
           - php: '8.4'
+          - php: '8.5'
             #mode: experimental
       fail-fast: false
 
@@ -239,3 +240,11 @@ jobs:
           mkdir -p /opt/php/lib
           echo memory_limit=-1 > /opt/php/lib/php.ini
           ./build/php/bin/php ./phpunit --colors=always src/Symfony/Component/Process
+
+      - name: Run PhpUnitBridge tests with PHPUnit 11
+        if: '! matrix.mode'
+        run: |
+          ./phpunit src/Symfony/Bridge/PhpUnit
+        env:
+          SYMFONY_PHPUNIT_VERSION: '11.3'
+          SYMFONY_DEPRECATIONS_HELPER: 'disabled'

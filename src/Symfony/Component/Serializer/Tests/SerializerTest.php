@@ -64,6 +64,8 @@ use Symfony\Component\Serializer\Tests\Fixtures\DummyNullableInt;
 use Symfony\Component\Serializer\Tests\Fixtures\DummyObjectWithEnumConstructor;
 use Symfony\Component\Serializer\Tests\Fixtures\DummyObjectWithEnumProperty;
 use Symfony\Component\Serializer\Tests\Fixtures\DummyWithObjectOrNull;
+use Symfony\Component\Serializer\Tests\Fixtures\DummyWithVariadicParameter;
+use Symfony\Component\Serializer\Tests\Fixtures\DummyWithVariadicProperty;
 use Symfony\Component\Serializer\Tests\Fixtures\FalseBuiltInDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\FooImplementationDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\FooInterfaceDummyDenormalizer;
@@ -426,7 +428,7 @@ class SerializerTest extends TestCase
         $example = new AbstractDummyFirstChild('foo-value', 'bar-value');
         $example->setQuux(new DummyFirstChildQuux('quux'));
 
-        $loaderMock = new class() implements ClassMetadataFactoryInterface {
+        $loaderMock = new class implements ClassMetadataFactoryInterface {
             public function getMetadataFor($value): ClassMetadataInterface
             {
                 if (AbstractDummy::class === $value) {
@@ -607,10 +609,10 @@ class SerializerTest extends TestCase
         $data['c2'] = new \ArrayObject(['nested' => new \ArrayObject(['k' => 'v'])]);
         $data['d1'] = new \ArrayObject(['nested' => []]);
         $data['d2'] = new \ArrayObject(['nested' => ['k' => 'v']]);
-        $data['e1'] = new class() {
+        $data['e1'] = new class {
             public $map = [];
         };
-        $data['e2'] = new class() {
+        $data['e2'] = new class {
             public $map = ['k' => 'v'];
         };
         $data['f1'] = new class(new \ArrayObject()) {
@@ -1659,6 +1661,45 @@ class SerializerTest extends TestCase
         ];
 
         $this->assertSame($expected, $exceptionsAsArray);
+    }
+
+    public function testPartialDenormalizationWithInvalidVariadicParameter()
+    {
+        $json = '{"variadic": ["a random string"]}';
+
+        $serializer = new Serializer([new UidNormalizer(), new ObjectNormalizer()], ['json' => new JsonEncoder()]);
+
+        $this->expectException(PartialDenormalizationException::class);
+
+        $serializer->deserialize($json, DummyWithVariadicParameter::class, 'json', [
+            DenormalizerInterface::COLLECT_DENORMALIZATION_ERRORS => true,
+        ]);
+    }
+
+    public function testEmptyArrayAsObjectDefaultContext()
+    {
+        $serializer = new Serializer(
+            defaultContext: [Serializer::EMPTY_ARRAY_AS_OBJECT => true],
+        );
+        $this->assertEquals(new \ArrayObject(), $serializer->normalize([]));
+    }
+
+    public function testPreserveEmptyObjectsAsDefaultContext()
+    {
+        $serializer = new Serializer(
+            defaultContext: [AbstractObjectNormalizer::PRESERVE_EMPTY_OBJECTS => true],
+        );
+        $this->assertEquals(new \ArrayObject(), $serializer->normalize(new \ArrayIterator()));
+    }
+
+    public function testCollectDenormalizationErrorsDefaultContext()
+    {
+        $data = ['variadic' => ['a random string']];
+        $serializer = new Serializer([new UidNormalizer(), new ObjectNormalizer()], [], [DenormalizerInterface::COLLECT_DENORMALIZATION_ERRORS => true]);
+
+        $this->expectException(PartialDenormalizationException::class);
+
+        $serializer->denormalize($data, DummyWithVariadicParameter::class);
     }
 }
 

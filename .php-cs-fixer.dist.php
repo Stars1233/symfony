@@ -23,6 +23,8 @@ file that was distributed with this source code.
 EOF;
 
 return (new PhpCsFixer\Config())
+    // @see https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/pull/7777
+    ->setParallelConfig(PhpCsFixer\Runner\Parallel\ParallelConfigFactory::detect())
     ->setRules([
         '@PHP71Migration' => true,
         '@PHPUnit75Migration:risky' => true,
@@ -30,11 +32,6 @@ return (new PhpCsFixer\Config())
         '@Symfony:risky' => true,
         'protected_to_private' => false,
         'header_comment' => ['header' => $fileHeaderComment],
-        // TODO: Remove once the "compiler_optimized" set includes "sprintf"
-        'native_function_invocation' => ['include' => ['@compiler_optimized', 'sprintf'], 'scope' => 'namespaced', 'strict' => true],
-        'nullable_type_declaration' => true,
-        'nullable_type_declaration_for_default_null_value' => true,
-        'trailing_comma_in_multiline' => ['elements' => ['arrays', 'match', 'parameters']],
     ])
     ->setRiskyAllowed(true)
     ->setFinder(

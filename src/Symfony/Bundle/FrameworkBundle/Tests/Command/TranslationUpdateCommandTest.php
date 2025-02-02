@@ -20,6 +20,8 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpKernel\Bundle\BundleInterface;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\Translation\Extractor\ExtractorInterface;
+use Symfony\Component\Translation\MessageCatalogue;
+use Symfony\Component\Translation\MessageCatalogueInterface;
 use Symfony\Component\Translation\Reader\TranslationReader;
 use Symfony\Component\Translation\Translator;
 use Symfony\Component\Translation\Writer\TranslationWriter;
@@ -103,8 +105,22 @@ class TranslationUpdateCommandTest extends TestCase
 
     public function testWriteMessages()
     {
-        $tester = $this->createCommandTester(['messages' => ['foo' => 'foo']]);
+        $tester = $this->createCommandTester(['messages' => ['foo' => 'foo', 'test' => 'test', 'bar' => 'bar']], writerMessages: ['foo', 'test', 'bar']);
         $tester->execute(['command' => 'translation:extract', 'locale' => 'en', 'bundle' => 'foo', '--force' => true]);
+        $this->assertMatchesRegularExpression('/Translation files were successfully updated./', $tester->getDisplay());
+    }
+
+    public function testWriteSortMessages()
+    {
+        $tester = $this->createCommandTester(['messages' => ['foo' => 'foo', 'test' => 'test', 'bar' => 'bar']], writerMessages: ['bar', 'foo', 'test']);
+        $tester->execute(['command' => 'translation:extract', 'locale' => 'en', 'bundle' => 'foo', '--force' => true, '--sort' => 'asc']);
+        $this->assertMatchesRegularExpression('/Translation files were successfully updated./', $tester->getDisplay());
+    }
+
+    public function testWriteReverseSortedMessages()
+    {
+        $tester = $this->createCommandTester(['messages' => ['foo' => 'foo', 'test' => 'test', 'bar' => 'bar']], writerMessages: ['test', 'foo', 'bar']);
+        $tester->execute(['command' => 'translation:extract', 'locale' => 'en', 'bundle' => 'foo', '--force' => true, '--sort' => 'desc']);
         $this->assertMatchesRegularExpression('/Translation files were successfully updated./', $tester->getDisplay());
     }
 
@@ -161,6 +177,45 @@ class TranslationUpdateCommandTest extends TestCase
         $this->assertEquals($expectedPaths, $filteredTransPaths);
     }
 
+    /**
+     * @dataProvider removeNoFillProvider
+     */
+    public function testRemoveNoFillTranslationsMethod($noFillCounter, $messages)
+    {
+        // Preparing mock
+        $operation = $this->createMock(MessageCatalogueInterface::class);
+        $operation
+            ->method('all')
+            ->with('messages')
+            ->willReturn($messages);
+        $operation
+            ->expects($this->exactly($noFillCounter))
+            ->method('set');
+
+        // Calling private method
+        $translationUpdate = $this->createMock(TranslationUpdateCommand::class);
+        $reflection = new \ReflectionObject($translationUpdate);
+        $method = $reflection->getMethod('removeNoFillTranslations');
+        $method->invokeArgs($translationUpdate, [$operation]);
+    }
+
+    public static function removeNoFillProvider(): array
+    {
+        return [
+            [0, []],
+            [0, ['foo' => 'foo', 'bar' => 'bar', 'baz' => 'baz']],
+            [0, ['foo' => "\0foo"]],
+            [0, ['foo' => "foo\0NoFill\0"]],
+            [0, ['foo' => "f\0NoFill\000"]],
+            [0, ['foo' => 'foo', 'bar' => 'bar']],
+            [1, ['foo' => "\0NoFill\0foo"]],
+            [1, ['foo' => "\0NoFill\0foo", 'bar' => 'bar']],
+            [1, ['foo' => 'foo', 'bar' => "\0NoFill\0bar"]],
+            [2, ['foo' => "\0NoFill\0foo", 'bar' => "\0NoFill\0bar"]],
+            [3, ['foo' => "\0NoFill\0foo", 'bar' => "\0NoFill\0bar", 'baz' => "\0NoFill\0baz"]],
+        ];
+    }
+
     protected function setUp(): void
     {
         $this->fs = new Filesystem();
@@ -175,7 +230,7 @@ class TranslationUpdateCommandTest extends TestCase
         $this->fs->remove($this->translationDir);
     }
 
-    private function createCommandTester($extractedMessages = [], $loadedMessages = [], ?KernelInterface $kernel = null, array $transPaths = [], array $codePaths = []): CommandTester
+    private function createCommandTester($extractedMessages = [], $loadedMessages = [], ?KernelInterface $kernel = null, array $transPaths = [], array $codePaths = [], ?array $writerMessages = null): CommandTester
     {
         $translator = $this->createMock(Translator::class);
         $translator
@@ -212,6 +267,16 @@ class TranslationUpdateCommandTest extends TestCase
             ->willReturn(
                 ['xlf', 'yml', 'yaml']
             );
+        if (null !== $writerMessages) {
+            $writer
+                ->expects($this->any())
+                ->method('write')
+                ->willReturnCallback(
+                    function (MessageCatalogue $catalogue) use ($writerMessages) {
+                        $this->assertSame($writerMessages, array_keys($catalogue->all()['messages']));
+                    }
+                );
+        }
 
         if (null === $kernel) {
             $returnValues = [

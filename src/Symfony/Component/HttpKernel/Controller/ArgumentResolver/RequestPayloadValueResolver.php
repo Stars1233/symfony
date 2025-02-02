@@ -46,11 +46,9 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 class RequestPayloadValueResolver implements ValueResolverInterface, EventSubscriberInterface
 {
     /**
-     * @see \Symfony\Component\Serializer\Normalizer\AbstractObjectNormalizer::DISABLE_TYPE_ENFORCEMENT
      * @see DenormalizerInterface::COLLECT_DENORMALIZATION_ERRORS
      */
     private const CONTEXT_DENORMALIZE = [
-        'disable_type_enforcement' => true,
         'collect_denormalization_errors' => true,
     ];
 
@@ -65,6 +63,7 @@ class RequestPayloadValueResolver implements ValueResolverInterface, EventSubscr
         private readonly SerializerInterface&DenormalizerInterface $serializer,
         private readonly ?ValidatorInterface $validator = null,
         private readonly ?TranslatorInterface $translator = null,
+        private string $translationDomain = 'validators',
     ) {
     }
 
@@ -137,7 +136,7 @@ class RequestPayloadValueResolver implements ValueResolverInterface, EventSubscr
                         if ($error->canUseMessageForUser()) {
                             $parameters['hint'] = $error->getMessage();
                         }
-                        $message = $trans($template, $parameters, 'validators');
+                        $message = $trans($template, $parameters, $this->translationDomain);
                         $violations->add(new ConstraintViolation($message, $template, $parameters, null, $error->getPath(), null));
                     }
                     $payload = $e->getData();
@@ -185,11 +184,11 @@ class RequestPayloadValueResolver implements ValueResolverInterface, EventSubscr
 
     private function mapQueryString(Request $request, ArgumentMetadata $argument, MapQueryString $attribute): ?object
     {
-        if (!$data = $request->query->all()) {
+        if (!($data = $request->query->all()) && ($argument->isNullable() || $argument->hasDefaultValue())) {
             return null;
         }
 
-        return $this->serializer->denormalize($data, $argument->getType(), null, $attribute->serializationContext + self::CONTEXT_DENORMALIZE + ['filter_bool' => true]);
+        return $this->serializer->denormalize($data, $argument->getType(), 'csv', $attribute->serializationContext + self::CONTEXT_DENORMALIZE + ['filter_bool' => true]);
     }
 
     private function mapRequestPayload(Request $request, ArgumentMetadata $argument, MapRequestPayload $attribute): object|array|null
@@ -209,10 +208,10 @@ class RequestPayloadValueResolver implements ValueResolverInterface, EventSubscr
         }
 
         if ($data = $request->request->all()) {
-            return $this->serializer->denormalize($data, $type, null, $attribute->serializationContext + self::CONTEXT_DENORMALIZE + ('form' === $format ? ['filter_bool' => true] : []));
+            return $this->serializer->denormalize($data, $type, 'csv', $attribute->serializationContext + self::CONTEXT_DENORMALIZE + ('form' === $format ? ['filter_bool' => true] : []));
         }
 
-        if ('' === $data = $request->getContent()) {
+        if ('' === ($data = $request->getContent()) && ($argument->isNullable() || $argument->hasDefaultValue())) {
             return null;
         }
 

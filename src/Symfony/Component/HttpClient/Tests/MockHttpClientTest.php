@@ -331,7 +331,7 @@ class MockHttpClientTest extends HttpClientTestCase
 
         switch ($testCase) {
             default:
-                return new MockHttpClient(function (string $method, string $url, array $options) use ($client) {
+                return new MockHttpClient(function (string $method, string $url, array $options) use ($client, $testCase) {
                     try {
                         // force the request to be completed so that we don't test side effects of the transport
                         $response = $client->request($method, $url, ['buffer' => false] + $options);
@@ -339,6 +339,9 @@ class MockHttpClientTest extends HttpClientTestCase
 
                         return new MockResponse($content, $response->getInfo());
                     } catch (\Throwable $e) {
+                        if (str_starts_with($testCase, 'testNoPrivateNetwork')) {
+                            throw $e;
+                        }
                         $this->fail($e->getMessage());
                     }
                 });
@@ -502,6 +505,11 @@ class MockHttpClientTest extends HttpClientTestCase
         $this->markTestSkipped('MockHttpClient doesn\'t support HTTP/2 PUSH.');
     }
 
+    public function testUnixSocket()
+    {
+        $this->markTestSkipped('MockHttpClient doesn\'t support binding to unix sockets.');
+    }
+
     public function testChangeResponseFactory()
     {
         /* @var MockHttpClient $client */
@@ -518,7 +526,7 @@ class MockHttpClientTest extends HttpClientTestCase
     {
         $client = new MockHttpClient();
 
-        $param = new class() {
+        $param = new class {
             public function __toString(): string
             {
                 return 'bar';

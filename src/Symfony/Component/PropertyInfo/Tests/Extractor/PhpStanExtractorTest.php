@@ -14,15 +14,18 @@ namespace Symfony\Component\PropertyInfo\Tests\Extractor;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
 use Symfony\Component\PropertyInfo\Extractor\PhpStanExtractor;
+use Symfony\Component\PropertyInfo\Tests\Fixtures\Clazz;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\ConstructorDummy;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\ConstructorDummyWithoutDocBlock;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\DefaultValue;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\DockBlockFallback;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\Dummy;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\DummyCollection;
+use Symfony\Component\PropertyInfo\Tests\Fixtures\DummyGeneric;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\DummyNamespace;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\DummyPropertyAndGetterWithDifferentTypes;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\DummyUnionType;
+use Symfony\Component\PropertyInfo\Tests\Fixtures\IFace;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\IntRangeDummy;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\InvalidDummy;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\ParentDummy;
@@ -36,6 +39,7 @@ use Symfony\Component\PropertyInfo\Tests\Fixtures\TraitUsage\DummyUsingTrait;
 use Symfony\Component\PropertyInfo\Type as LegacyType;
 use Symfony\Component\TypeInfo\Exception\LogicException;
 use Symfony\Component\TypeInfo\Type;
+use Symfony\Component\TypeInfo\Type\WrappingTypeInterface;
 
 require_once __DIR__.'/../Fixtures/Extractor/DummyNamespace.php';
 
@@ -552,6 +556,77 @@ class PhpStanExtractorTest extends TestCase
     }
 
     /**
+     * @param list<LegacyType> $expectedTypes
+     *
+     * @dataProvider legacyGenericsProvider
+     */
+    public function testGenericsLegacy(string $property, array $expectedTypes)
+    {
+        $this->assertEquals($expectedTypes, $this->extractor->getTypes(DummyGeneric::class, $property));
+    }
+
+    /**
+     * @return iterable<array{0: string, 1: list<LegacyType>}>
+     */
+    public static function legacyGenericsProvider(): iterable
+    {
+        yield [
+            'basicClass',
+            [
+                new LegacyType(
+                    builtinType: LegacyType::BUILTIN_TYPE_OBJECT,
+                    class: Clazz::class,
+                    collectionValueType: new LegacyType(
+                        builtinType: LegacyType::BUILTIN_TYPE_OBJECT,
+                        class: Dummy::class,
+                    )
+                ),
+            ],
+        ];
+        yield [
+            'nullableClass',
+            [
+                new LegacyType(
+                    builtinType: LegacyType::BUILTIN_TYPE_OBJECT,
+                    class: Clazz::class,
+                    nullable: true,
+                    collectionValueType: new LegacyType(
+                        builtinType: LegacyType::BUILTIN_TYPE_OBJECT,
+                        class: Dummy::class,
+                    )
+                ),
+            ],
+        ];
+        yield [
+            'basicInterface',
+            [
+                new LegacyType(
+                    builtinType: LegacyType::BUILTIN_TYPE_OBJECT,
+                    class: IFace::class,
+                    collectionValueType: new LegacyType(
+                        builtinType: LegacyType::BUILTIN_TYPE_OBJECT,
+                        class: Dummy::class,
+                    )
+                ),
+            ],
+        ];
+        yield [
+            'nullableInterface',
+            [
+                new LegacyType(
+                    builtinType: LegacyType::BUILTIN_TYPE_OBJECT,
+                    class: IFace::class,
+                    nullable: true,
+                    collectionValueType: new LegacyType(
+                        builtinType: LegacyType::BUILTIN_TYPE_OBJECT,
+                        class: Dummy::class,
+                    )
+                ),
+            ],
+        ];
+    }
+
+    /**
      * @dataProvider typesProvider
      */
     public function testExtract(string $property, ?Type $type)
@@ -594,6 +669,7 @@ class PhpStanExtractorTest extends TestCase
         yield ['self', Type::object(Dummy::class)];
         yield ['rootDummyItems', Type::list(Type::object(RootDummyItem::class))];
         yield ['rootDummyItem', Type::object(RootDummyItem::class)];
+        yield ['collectionAsObject', Type::collection(Type::object(DummyCollection::class), Type::string(), Type::int())];
     }
 
     public function testParamTagTypeIsOmitted()
@@ -868,7 +944,14 @@ class PhpStanExtractorTest extends TestCase
     public static function pseudoTypesProvider(): iterable
     {
         yield ['classString', Type::string()];
-        yield ['classStringGeneric', Type::generic(Type::string(), Type::object(\stdClass::class))];
+
+        // BC layer for type-info < 7.2
+        if (!interface_exists(WrappingTypeInterface::class)) {
+            yield ['classStringGeneric', Type::generic(Type::string(), Type::object(\stdClass::class))];
+        } else {
+            yield ['classStringGeneric', Type::string()];
+        }
+
         yield ['htmlEscapedString', Type::string()];
         yield ['lowercaseString', Type::string()];
         yield ['nonEmptyLowercaseString', Type::string()];
@@ -959,7 +1042,41 @@ class PhpStanExtractorTest extends TestCase
 
     public function testGenericInterface()
     {
-        $this->assertNull($this->extractor->getTypes(Dummy::class, 'genericInterface'));
+        $this->assertEquals(
+            Type::generic(Type::enum(\BackedEnum::class), Type::string()),
+            $this->extractor->getType(Dummy::class, 'genericInterface'),
+        );
+    }
+
+    /**
+     * @dataProvider genericsProvider
+     */
+    public function testGenerics(string $property, Type $expectedType)
+    {
+        $this->assertEquals($expectedType, $this->extractor->getType(DummyGeneric::class, $property));
+    }
+
+    /**
+     * @return iterable<array{0: string, 1: Type}>
+     */
+    public static function genericsProvider(): iterable
+    {
+        yield [
+            'basicClass',
+            Type::generic(Type::object(Clazz::class), Type::object(Dummy::class)),
+        ];
+        yield [
+            'nullableClass',
+            Type::nullable(Type::generic(Type::object(Clazz::class), Type::object(Dummy::class))),
+        ];
+        yield [
+            'basicInterface',
+            Type::generic(Type::object(IFace::class), Type::object(Dummy::class)),
+        ];
+        yield [
+            'nullableInterface',
+            Type::nullable(Type::generic(Type::object(IFace::class), Type::object(Dummy::class))),
+        ];
     }
 }
 

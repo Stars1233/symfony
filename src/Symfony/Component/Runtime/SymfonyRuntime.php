@@ -93,9 +93,15 @@ class SymfonyRuntime extends GenericRuntime
         $envKey = $options['env_var_name'] ??= 'APP_ENV';
         $debugKey = $options['debug_var_name'] ??= 'APP_DEBUG';
 
+        if (isset($_SERVER['argv']) && !empty($_GET)) {
+            // register_argc_argv=On is too risky in web servers
+            $_SERVER['argv'] = [];
+            $_SERVER['argc'] = 0;
+        }
+
         if (isset($options['env'])) {
             $_SERVER[$envKey] = $options['env'];
-        } elseif (isset($_SERVER['argv']) && class_exists(ArgvInput::class)) {
+        } elseif (empty($_GET) && isset($_SERVER['argv']) && class_exists(ArgvInput::class)) {
             $this->options = $options;
             $this->getInput();
         }
@@ -154,10 +160,6 @@ class SymfonyRuntime extends GenericRuntime
         }
 
         if ($application instanceof Application) {
-            if (!\in_array(\PHP_SAPI, ['cli', 'phpdbg', 'embed'], true)) {
-                echo 'Warning: The console should be invoked via the CLI version of PHP, not the '.\PHP_SAPI.' SAPI'.\PHP_EOL;
-            }
-
             set_time_limit(0);
             $defaultEnv = !isset($this->options['env']) ? ($_SERVER[$this->options['env_var_name']] ?? 'dev') : null;
             $output = $this->output ??= new ConsoleOutput();

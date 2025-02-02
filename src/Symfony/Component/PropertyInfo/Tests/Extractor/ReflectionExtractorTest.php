@@ -16,6 +16,7 @@ use Symfony\Component\PropertyInfo\Extractor\ReflectionExtractor;
 use Symfony\Component\PropertyInfo\PropertyReadInfo;
 use Symfony\Component\PropertyInfo\PropertyWriteInfo;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\AdderRemoverDummy;
+use Symfony\Component\PropertyInfo\Tests\Fixtures\AsymmetricVisibility;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\ConstructorDummy;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\DefaultValue;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\Dummy;
@@ -31,8 +32,10 @@ use Symfony\Component\PropertyInfo\Tests\Fixtures\Php80Dummy;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\Php81Dummy;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\Php82Dummy;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\SnakeCaseDummy;
+use Symfony\Component\PropertyInfo\Tests\Fixtures\VirtualProperties;
 use Symfony\Component\PropertyInfo\Type as LegacyType;
 use Symfony\Component\TypeInfo\Type;
+use Symfony\Component\TypeInfo\Type\NullableType;
 
 /**
  * @author Kévin Dunglas <dunglas@gmail.com>
@@ -76,6 +79,7 @@ class ReflectionExtractorTest extends TestCase
                 'listOfStrings',
                 'parentAnnotation',
                 'genericInterface',
+                'nullableTypedCollection',
                 'foo',
                 'foo2',
                 'foo3',
@@ -143,6 +147,7 @@ class ReflectionExtractorTest extends TestCase
                 'listOfStrings',
                 'parentAnnotation',
                 'genericInterface',
+                'nullableTypedCollection',
                 'foo',
                 'foo2',
                 'foo3',
@@ -199,6 +204,7 @@ class ReflectionExtractorTest extends TestCase
                 'listOfStrings',
                 'parentAnnotation',
                 'genericInterface',
+                'nullableTypedCollection',
                 'foo',
                 'foo2',
                 'foo3',
@@ -548,6 +554,7 @@ class ReflectionExtractorTest extends TestCase
         $this->assertEquals([new LegacyType(LegacyType::BUILTIN_TYPE_ARRAY, false, null, true, new LegacyType(LegacyType::BUILTIN_TYPE_INT), new LegacyType(LegacyType::BUILTIN_TYPE_STRING))], $this->extractor->getTypes(Php74Dummy::class, 'stringCollection'));
         $this->assertEquals([new LegacyType(LegacyType::BUILTIN_TYPE_INT, true)], $this->extractor->getTypes(Php74Dummy::class, 'nullableWithDefault'));
         $this->assertEquals([new LegacyType(LegacyType::BUILTIN_TYPE_ARRAY, false, null, true)], $this->extractor->getTypes(Php74Dummy::class, 'collection'));
+        $this->assertEquals([new LegacyType(LegacyType::BUILTIN_TYPE_ARRAY, true, null, true, new LegacyType(LegacyType::BUILTIN_TYPE_INT), new LegacyType(LegacyType::BUILTIN_TYPE_OBJECT, false, Dummy::class))], $this->extractor->getTypes(Php74Dummy::class, 'nullableTypedCollection'));
     }
 
     /**
@@ -653,6 +660,17 @@ class ReflectionExtractorTest extends TestCase
         ];
     }
 
+    public function testDisabledAdderAndRemoverReturnsError()
+    {
+        $writeMutator = $this->extractor->getWriteInfo(Php71Dummy::class, 'baz', [
+            'enable_adder_remover_extraction' => false,
+        ]);
+
+        self::assertNotNull($writeMutator);
+        self::assertSame(PropertyWriteInfo::TYPE_NONE, $writeMutator->getType());
+        self::assertSame([\sprintf('The property "baz" in class "%s" can be defined with the methods "addBaz()", "removeBaz()" but the new value must be an array or an instance of \Traversable', Php71Dummy::class)], $writeMutator->getErrors());
+    }
+
     public function testGetWriteInfoReadonlyProperties()
     {
         $writeMutatorConstructor = $this->extractor->getWriteInfo(Php81Dummy::class, 'foo', ['enable_constructor_extraction' => true]);
@@ -681,6 +699,129 @@ class ReflectionExtractorTest extends TestCase
             ['dateTime', [new LegacyType(LegacyType::BUILTIN_TYPE_OBJECT, false, 'DateTimeImmutable')]],
             ['ddd', null],
         ];
+    }
+
+    /**
+     * @requires PHP 8.4
+     */
+    public function testAsymmetricVisibility()
+    {
+        $this->assertTrue($this->extractor->isReadable(AsymmetricVisibility::class, 'publicPrivate'));
+        $this->assertTrue($this->extractor->isReadable(AsymmetricVisibility::class, 'publicProtected'));
+        $this->assertFalse($this->extractor->isReadable(AsymmetricVisibility::class, 'protectedPrivate'));
+        $this->assertFalse($this->extractor->isWritable(AsymmetricVisibility::class, 'publicPrivate'));
+        $this->assertFalse($this->extractor->isWritable(AsymmetricVisibility::class, 'publicProtected'));
+        $this->assertFalse($this->extractor->isWritable(AsymmetricVisibility::class, 'protectedPrivate'));
+    }
+
+    /**
+     * @requires PHP 8.4
+     */
+    public function testAsymmetricVisibilityAllowPublicOnly()
+    {
+        $extractor = new ReflectionExtractor(null, null, null, true, ReflectionExtractor::ALLOW_PUBLIC);
+
+        $this->assertTrue($extractor->isReadable(AsymmetricVisibility::class, 'publicPrivate'));
+        $this->assertTrue($extractor->isReadable(AsymmetricVisibility::class, 'publicProtected'));
+        $this->assertFalse($extractor->isReadable(AsymmetricVisibility::class, 'protectedPrivate'));
+        $this->assertFalse($extractor->isWritable(AsymmetricVisibility::class, 'publicPrivate'));
+        $this->assertFalse($extractor->isWritable(AsymmetricVisibility::class, 'publicProtected'));
+        $this->assertFalse($extractor->isWritable(AsymmetricVisibility::class, 'protectedPrivate'));
+    }
+
+    /**
+     * @requires PHP 8.4
+     */
+    public function testAsymmetricVisibilityAllowProtectedOnly()
+    {
+        $extractor = new ReflectionExtractor(null, null, null, true, ReflectionExtractor::ALLOW_PROTECTED);
+
+        $this->assertFalse($extractor->isReadable(AsymmetricVisibility::class, 'publicPrivate'));
+        $this->assertFalse($extractor->isReadable(AsymmetricVisibility::class, 'publicProtected'));
+        $this->assertTrue($extractor->isReadable(AsymmetricVisibility::class, 'protectedPrivate'));
+        $this->assertFalse($extractor->isWritable(AsymmetricVisibility::class, 'publicPrivate'));
+        $this->assertTrue($extractor->isWritable(AsymmetricVisibility::class, 'publicProtected'));
+        $this->assertFalse($extractor->isWritable(AsymmetricVisibility::class, 'protectedPrivate'));
+    }
+
+    /**
+     * @requires PHP 8.4
+     */
+    public function testAsymmetricVisibilityAllowPrivateOnly()
+    {
+        $extractor = new ReflectionExtractor(null, null, null, true, ReflectionExtractor::ALLOW_PRIVATE);
+
+        $this->assertFalse($extractor->isReadable(AsymmetricVisibility::class, 'publicPrivate'));
+        $this->assertFalse($extractor->isReadable(AsymmetricVisibility::class, 'publicProtected'));
+        $this->assertFalse($extractor->isReadable(AsymmetricVisibility::class, 'protectedPrivate'));
+        $this->assertTrue($extractor->isWritable(AsymmetricVisibility::class, 'publicPrivate'));
+        $this->assertFalse($extractor->isWritable(AsymmetricVisibility::class, 'publicProtected'));
+        $this->assertTrue($extractor->isWritable(AsymmetricVisibility::class, 'protectedPrivate'));
+    }
+
+    /**
+     * @requires PHP 8.4
+     */
+    public function testVirtualProperties()
+    {
+        $this->assertTrue($this->extractor->isReadable(VirtualProperties::class, 'virtualNoSetHook'));
+        $this->assertTrue($this->extractor->isReadable(VirtualProperties::class, 'virtualSetHookOnly'));
+        $this->assertTrue($this->extractor->isReadable(VirtualProperties::class, 'virtualHook'));
+        $this->assertFalse($this->extractor->isWritable(VirtualProperties::class, 'virtualNoSetHook'));
+        $this->assertTrue($this->extractor->isWritable(VirtualProperties::class, 'virtualSetHookOnly'));
+        $this->assertTrue($this->extractor->isWritable(VirtualProperties::class, 'virtualHook'));
+    }
+
+    /**
+     * @dataProvider provideAsymmetricVisibilityMutator
+     *
+     * @requires PHP 8.4
+     */
+    public function testAsymmetricVisibilityMutator(string $property, string $readVisibility, string $writeVisibility)
+    {
+        $extractor = new ReflectionExtractor(null, null, null, true, ReflectionExtractor::ALLOW_PUBLIC | ReflectionExtractor::ALLOW_PROTECTED | ReflectionExtractor::ALLOW_PRIVATE);
+        $readMutator = $extractor->getReadInfo(AsymmetricVisibility::class, $property);
+        $writeMutator = $extractor->getWriteInfo(AsymmetricVisibility::class, $property, [
+            'enable_getter_setter_extraction' => true,
+        ]);
+
+        $this->assertSame(PropertyReadInfo::TYPE_PROPERTY, $readMutator->getType());
+        $this->assertSame(PropertyWriteInfo::TYPE_PROPERTY, $writeMutator->getType());
+        $this->assertSame($readVisibility, $readMutator->getVisibility());
+        $this->assertSame($writeVisibility, $writeMutator->getVisibility());
+    }
+
+    public static function provideAsymmetricVisibilityMutator(): iterable
+    {
+        yield ['publicPrivate', PropertyReadInfo::VISIBILITY_PUBLIC, PropertyWriteInfo::VISIBILITY_PRIVATE];
+        yield ['publicProtected', PropertyReadInfo::VISIBILITY_PUBLIC, PropertyWriteInfo::VISIBILITY_PROTECTED];
+        yield ['protectedPrivate', PropertyReadInfo::VISIBILITY_PROTECTED, PropertyWriteInfo::VISIBILITY_PRIVATE];
+    }
+
+    /**
+     * @dataProvider provideVirtualPropertiesMutator
+     *
+     * @requires PHP 8.4
+     */
+    public function testVirtualPropertiesMutator(string $property, string $readVisibility, string $writeVisibility)
+    {
+        $extractor = new ReflectionExtractor(null, null, null, true, ReflectionExtractor::ALLOW_PUBLIC | ReflectionExtractor::ALLOW_PROTECTED | ReflectionExtractor::ALLOW_PRIVATE);
+        $readMutator = $extractor->getReadInfo(VirtualProperties::class, $property);
+        $writeMutator = $extractor->getWriteInfo(VirtualProperties::class, $property, [
+            'enable_getter_setter_extraction' => true,
+        ]);
+
+        $this->assertSame(PropertyReadInfo::TYPE_PROPERTY, $readMutator->getType());
+        $this->assertSame(PropertyWriteInfo::TYPE_PROPERTY, $writeMutator->getType());
+        $this->assertSame($readVisibility, $readMutator->getVisibility());
+        $this->assertSame($writeVisibility, $writeMutator->getVisibility());
+    }
+
+    public static function provideVirtualPropertiesMutator(): iterable
+    {
+        yield ['virtualNoSetHook', PropertyReadInfo::VISIBILITY_PUBLIC, PropertyWriteInfo::VISIBILITY_PRIVATE];
+        yield ['virtualSetHookOnly', PropertyReadInfo::VISIBILITY_PUBLIC, PropertyWriteInfo::VISIBILITY_PUBLIC];
+        yield ['virtualHook', PropertyReadInfo::VISIBILITY_PUBLIC, PropertyWriteInfo::VISIBILITY_PUBLIC];
     }
 
     /**
@@ -767,7 +908,14 @@ class ReflectionExtractorTest extends TestCase
         yield ['foo', Type::nullable(Type::array())];
         yield ['bar', Type::nullable(Type::int())];
         yield ['timeout', Type::union(Type::int(), Type::float())];
-        yield ['optional', Type::union(Type::nullable(Type::int()), Type::nullable(Type::float()))];
+
+        // BC layer for type-info < 7.2
+        if (!class_exists(NullableType::class)) {
+            yield ['optional', Type::union(Type::nullable(Type::int()), Type::nullable(Type::float()))];
+        } else {
+            yield ['optional', Type::nullable(Type::union(Type::float(), Type::int()))];
+        }
+
         yield ['string', Type::union(Type::string(), Type::object(\Stringable::class))];
         yield ['payload', Type::mixed()];
         yield ['data', Type::mixed()];
@@ -865,6 +1013,7 @@ class ReflectionExtractorTest extends TestCase
         $this->assertEquals(Type::list(Type::string()), $this->extractor->getType(Php74Dummy::class, 'stringCollection'));
         $this->assertEquals(Type::nullable(Type::int()), $this->extractor->getType(Php74Dummy::class, 'nullableWithDefault'));
         $this->assertEquals(Type::array(), $this->extractor->getType(Php74Dummy::class, 'collection'));
+        $this->assertEquals(Type::nullable(Type::list(Type::object(Dummy::class))), $this->extractor->getType(Php74Dummy::class, 'nullableTypedCollection'));
     }
 
     /**

@@ -72,11 +72,11 @@ class PropertyAccessor implements PropertyAccessorInterface
      * Should not be used by application code. Use
      * {@link PropertyAccess::createPropertyAccessor()} instead.
      *
-     * @param int $magicMethods A bitwise combination of the MAGIC_* constants
-     *                          to specify the allowed magic methods (__get, __set, __call)
-     *                          or self::DISALLOW_MAGIC_METHODS for none
-     * @param int $throw        A bitwise combination of the THROW_* constants
-     *                          to specify when exceptions should be thrown
+     * @param int $magicMethodsFlags A bitwise combination of the MAGIC_* constants
+     *                               to specify the allowed magic methods (__get, __set, __call)
+     *                               or self::DISALLOW_MAGIC_METHODS for none
+     * @param int $throw             A bitwise combination of the THROW_* constants
+     *                               to specify when exceptions should be thrown
      */
     public function __construct(
         private int $magicMethodsFlags = self::MAGIC_GET | self::MAGIC_SET,
@@ -98,7 +98,7 @@ class PropertyAccessor implements PropertyAccessorInterface
             self::VALUE => $objectOrArray,
         ];
 
-        if (\is_object($objectOrArray) && false === strpbrk((string) $propertyPath, '.[?')) {
+        if (\is_object($objectOrArray) && (false === strpbrk((string) $propertyPath, '.[?') || $objectOrArray instanceof \stdClass && property_exists($objectOrArray, $propertyPath))) {
             return $this->readProperty($zval, $propertyPath, $this->ignoreInvalidProperty)[self::VALUE];
         }
 
@@ -111,7 +111,7 @@ class PropertyAccessor implements PropertyAccessorInterface
 
     public function setValue(object|array &$objectOrArray, string|PropertyPathInterface $propertyPath, mixed $value): void
     {
-        if (\is_object($objectOrArray) && false === strpbrk((string) $propertyPath, '.[')) {
+        if (\is_object($objectOrArray) && (false === strpbrk((string) $propertyPath, '.[') || $objectOrArray instanceof \stdClass && property_exists($objectOrArray, $propertyPath))) {
             $zval = [
                 self::VALUE => $objectOrArray,
             ];
@@ -214,7 +214,13 @@ class PropertyAccessor implements PropertyAccessorInterface
             $zval = [
                 self::VALUE => $objectOrArray,
             ];
-            $this->readPropertiesUntil($zval, $propertyPath, $propertyPath->getLength(), $this->ignoreInvalidIndices);
+
+            // handle stdClass with properties with a dot in the name
+            if ($objectOrArray instanceof \stdClass && str_contains($propertyPath, '.')  && property_exists($objectOrArray, $propertyPath)) {
+                $this->readProperty($zval, $propertyPath, $this->ignoreInvalidProperty);
+            } else {
+                $this->readPropertiesUntil($zval, $propertyPath, $propertyPath->getLength(), $this->ignoreInvalidIndices);
+            }
 
             return true;
         } catch (AccessException|UnexpectedTypeException) {
@@ -230,6 +236,14 @@ class PropertyAccessor implements PropertyAccessorInterface
             $zval = [
                 self::VALUE => $objectOrArray,
             ];
+
+            // handle stdClass with properties with a dot in the name
+            if ($objectOrArray instanceof \stdClass && str_contains($propertyPath, '.') && property_exists($objectOrArray, $propertyPath)) {
+                $this->readProperty($zval, $propertyPath, $this->ignoreInvalidProperty);
+
+                return true;
+            }
+
             $propertyValues = $this->readPropertiesUntil($zval, $propertyPath, $propertyPath->getLength() - 1);
 
             for ($i = \count($propertyValues) - 1; 0 <= $i; --$i) {
@@ -615,15 +629,22 @@ class PropertyAccessor implements PropertyAccessorInterface
      */
     private function isPropertyWritable(object $object, string $property): bool
     {
-        $mutatorForArray = $this->getWriteInfo($object::class, $property, []);
+        if ($object instanceof \stdClass && property_exists($object, $property)) {
+            return true;
+        }
 
-        if (PropertyWriteInfo::TYPE_NONE !== $mutatorForArray->getType() || ($object instanceof \stdClass && property_exists($object, $property))) {
+        $mutatorForArray = $this->getWriteInfo($object::class, $property, []);
+        if (PropertyWriteInfo::TYPE_PROPERTY === $mutatorForArray->getType()) {
+            return $mutatorForArray->getVisibility() === 'public';
+        }
+
+        if (PropertyWriteInfo::TYPE_NONE !== $mutatorForArray->getType()) {
             return true;
         }
 
         $mutator = $this->getWriteInfo($object::class, $property, '');
 
-        return PropertyWriteInfo::TYPE_NONE !== $mutator->getType() || ($object instanceof \stdClass && property_exists($object, $property));
+        return PropertyWriteInfo::TYPE_NONE !== $mutator->getType();
     }
 
     /**

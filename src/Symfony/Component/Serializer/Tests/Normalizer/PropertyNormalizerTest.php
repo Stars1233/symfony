@@ -195,8 +195,6 @@ class PropertyNormalizerTest extends TestCase
                 'fooBar' => null,
                 'symfony' => null,
                 'baz' => 'baz',
-                'default' => null,
-                'className' => null,
             ],
             $this->normalizer->normalize($group, 'any')
         );
@@ -321,8 +319,6 @@ class PropertyNormalizerTest extends TestCase
                 'bar' => null,
                 'foo_bar' => '@dunglas',
                 'symfony' => '@coopTilleuls',
-                'default' => null,
-                'class_name' => null,
             ],
             $this->normalizer->normalize($obj, null, [PropertyNormalizer::GROUPS => ['name_converter']])
         );
@@ -478,7 +474,7 @@ class PropertyNormalizerTest extends TestCase
             RootDummy::class,
             'any'
         );
-        $this->assertEquals($root::class, RootDummy::class);
+        $this->assertSame(RootDummy::class, $root::class);
 
         // children (two dimension array)
         $this->assertCount(1, $root->children);

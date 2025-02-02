@@ -29,6 +29,9 @@ use Symfony\Component\Process\PhpProcess;
  * you need to also implement the getScript() method.
  *
  * @author Fabien Potencier <fabien@symfony.com>
+ *
+ * @template TRequest of object
+ * @template TResponse of object
  */
 abstract class AbstractBrowser
 {
@@ -36,8 +39,10 @@ abstract class AbstractBrowser
     protected CookieJar $cookieJar;
     protected array $server = [];
     protected Request $internalRequest;
+    /** @psalm-var TRequest */
     protected object $request;
     protected Response $internalResponse;
+    /** @psalm-var TResponse */
     protected object $response;
     protected Crawler $crawler;
     protected bool $useHtml5Parser = true;
@@ -221,6 +226,8 @@ abstract class AbstractBrowser
      * The origin response is the response instance that is returned
      * by the code that handles requests.
      *
+     * @psalm-return TResponse
+     *
      * @see doRequest()
      */
     public function getResponse(): object
@@ -241,6 +248,8 @@ abstract class AbstractBrowser
      *
      * The origin request is the request instance that is sent
      * to the code that handles requests.
+     *
+     * @psalm-return TRequest
      *
      * @see doRequest()
      */
@@ -337,11 +346,11 @@ abstract class AbstractBrowser
 
         $server = array_merge($this->server, $server);
 
-        if (!empty($server['HTTP_HOST']) && null === parse_url($originalUri, \PHP_URL_HOST)) {
+        if (!empty($server['HTTP_HOST']) && !parse_url($originalUri, \PHP_URL_HOST)) {
             $uri = preg_replace('{^(https?\://)'.preg_quote($this->extractHost($uri)).'}', '${1}'.$server['HTTP_HOST'], $uri);
         }
 
-        if (isset($server['HTTPS']) && null === parse_url($originalUri, \PHP_URL_SCHEME)) {
+        if (isset($server['HTTPS']) && !parse_url($originalUri, \PHP_URL_SCHEME)) {
             $uri = preg_replace('{^'.parse_url($uri, \PHP_URL_SCHEME).'}', $server['HTTPS'] ? 'https' : 'http', $uri);
         }
 
@@ -402,7 +411,11 @@ abstract class AbstractBrowser
     /**
      * Makes a request in another process.
      *
+     * @psalm-param TRequest $request
+     *
      * @return object
+     *
+     * @psalm-return TResponse
      *
      * @throws \RuntimeException When processing returns exit code
      */
@@ -437,12 +450,18 @@ abstract class AbstractBrowser
     /**
      * Makes a request.
      *
+     * @psalm-param TRequest $request
+     *
      * @return object
+     *
+     * @psalm-return TResponse
      */
     abstract protected function doRequest(object $request);
 
     /**
      * Returns the script to execute when the request must be insulated.
+     *
+     * @psalm-param TRequest $request
      *
      * @param object $request An origin request instance
      *
@@ -459,6 +478,8 @@ abstract class AbstractBrowser
      * Filters the BrowserKit request to the origin one.
      *
      * @return object
+     *
+     * @psalm-return TRequest
      */
     protected function filterRequest(Request $request)
     {
@@ -467,6 +488,8 @@ abstract class AbstractBrowser
 
     /**
      * Filters the origin response to the BrowserKit one.
+     *
+     * @psalm-param TResponse $response
      *
      * @return Response
      */
@@ -531,7 +554,7 @@ abstract class AbstractBrowser
      */
     public function followRedirect(): Crawler
     {
-        if (!$this->redirect) {
+        if (!isset($this->redirect)) {
             throw new LogicException('The request was not redirected.');
         }
 

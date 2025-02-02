@@ -19,14 +19,16 @@ use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\FilterExpression;
 use Twig\Node\ModuleNode;
 use Twig\Node\Node;
+use Twig\Node\Nodes;
 use Twig\Source;
+use Twig\TwigFilter;
 
 class TwigNodeProvider
 {
     public static function getModule($content)
     {
         return new ModuleNode(
-            new ConstantExpression($content, 0),
+            new BodyNode([new ConstantExpression($content, 0)]),
             null,
             new ArrayExpression([], 0),
             new ArrayExpression([], 0),
@@ -45,10 +47,16 @@ class TwigNodeProvider
             ] : [];
         }
 
+        if (class_exists(Nodes::class)) {
+            $args = new Nodes($arguments);
+        } else {
+            $args = new Node($arguments);
+        }
+
         return new FilterExpression(
             new ConstantExpression($message, 0),
-            new ConstantExpression('trans', 0),
-            new Node($arguments),
+            new TwigFilter('trans'),
+            $args,
             0
         );
     }

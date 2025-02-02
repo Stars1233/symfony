@@ -60,9 +60,17 @@ class UnsupportedSchemeException extends LogicException
             'class' => Bridge\Mailchimp\Transport\MandrillTransportFactory::class,
             'package' => 'symfony/mailchimp-mailer',
         ],
+        'postal' => [
+            'class' => Bridge\Postal\Transport\PostalTransportFactory::class,
+            'package' => 'symfony/postal-mailer',
+        ],
         'postmark' => [
             'class' => Bridge\Postmark\Transport\PostmarkTransportFactory::class,
             'package' => 'symfony/postmark-mailer',
+        ],
+        'mailtrap' => [
+            'class' => Bridge\Mailtrap\Transport\MailtrapTransportFactory::class,
+            'package' => 'symfony/mailtrap-mailer',
         ],
         'resend' => [
             'class' => Bridge\Resend\Transport\ResendTransportFactory::class,
@@ -79,6 +87,10 @@ class UnsupportedSchemeException extends LogicException
         'ses' => [
             'class' => Bridge\Amazon\Transport\SesTransportFactory::class,
             'package' => 'symfony/amazon-mailer',
+        ],
+        'sweego' => [
+            'class' => Bridge\Sweego\Transport\SweegoTransportFactory::class,
+            'package' => 'symfony/sweego-mailer',
         ],
     ];
 

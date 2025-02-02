@@ -1,6 +1,12 @@
 CHANGELOG
 =========
 
+7.2
+---
+
+ * Add methods for `saslBind()` and `whoami()` to `ConnectionInterface` and `LdapInterface`
+ * Deprecate the `sizeLimit` option of `AbstractQuery`, the option is unused
+
 7.1
 ---
 

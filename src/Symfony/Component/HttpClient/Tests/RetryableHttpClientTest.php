@@ -27,11 +27,6 @@ use Symfony\Contracts\HttpClient\Test\TestHttpServer;
 
 class RetryableHttpClientTest extends TestCase
 {
-    public static function tearDownAfterClass(): void
-    {
-        TestHttpServer::stop();
-    }
-
     public function testRetryOnError()
     {
         $client = new RetryableHttpClient(
@@ -176,7 +171,7 @@ class RetryableHttpClientTest extends TestCase
             $this->assertSame('Could not resolve host "does.not.exists".', $e->getMessage());
         }
         $this->assertCount(2, $logger->logs);
-        $this->assertSame('Try #{count} after {delay}ms: Could not resolve host "does.not.exists".', $logger->logs[0]);
+        $this->assertSame('Try #1 after 0ms: Could not resolve host "does.not.exists".', $logger->logs[0]);
     }
 
     public function testCancelOnTimeout()
@@ -215,7 +210,7 @@ class RetryableHttpClientTest extends TestCase
             ]),
             new GenericRetryStrategy(),
             1,
-            $logger = new class() extends TestLogger {
+            $logger = new class extends TestLogger {
                 public array $context = [];
 
                 public function log($level, $message, array $context = []): void
@@ -259,7 +254,7 @@ class RetryableHttpClientTest extends TestCase
 
         TestHttpServer::start();
 
-        $strategy = new class() implements RetryStrategyInterface {
+        $strategy = new class implements RetryStrategyInterface {
             public $isCalled = false;
 
             public function shouldRetry(AsyncContext $context, ?string $responseContent, ?TransportExceptionInterface $exception): ?bool

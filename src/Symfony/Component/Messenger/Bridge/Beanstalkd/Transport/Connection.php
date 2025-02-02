@@ -124,7 +124,7 @@ class Connection
             $job = $this->client->useTube($this->tube)->put(
                 $message,
                 PheanstalkInterface::DEFAULT_PRIORITY,
-                $delay / 1000,
+                (int) ($delay / 1000),
                 $this->ttr
             );
         } catch (Exception $exception) {
@@ -175,6 +175,15 @@ class Connection
     {
         try {
             $this->client->useTube($this->tube)->delete(new JobId((int) $id));
+        } catch (Exception $exception) {
+            throw new TransportException($exception->getMessage(), 0, $exception);
+        }
+    }
+
+    public function keepalive(string $id): void
+    {
+        try {
+            $this->client->useTube($this->tube)->touch(new JobId((int) $id));
         } catch (Exception $exception) {
             throw new TransportException($exception->getMessage(), 0, $exception);
         }

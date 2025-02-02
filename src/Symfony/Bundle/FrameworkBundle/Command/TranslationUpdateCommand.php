@@ -19,7 +19,6 @@ use Symfony\Component\Console\Exception\InvalidArgumentException;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\HttpKernel\KernelInterface;
@@ -49,6 +48,7 @@ class TranslationUpdateCommand extends Command
         'xlf12' => ['xlf', '1.2'],
         'xlf20' => ['xlf', '2.0'],
     ];
+    private const NO_FILL_PREFIX = "\0NoFill\0";
 
     public function __construct(
         private TranslationWriterInterface $writer,
@@ -62,6 +62,10 @@ class TranslationUpdateCommand extends Command
         private array $enabledLocales = [],
     ) {
         parent::__construct();
+
+        if (!method_exists($writer, 'getFormats')) {
+            throw new \InvalidArgumentException(sprintf('The writer class "%s" does not implement the "getFormats()" method.', $writer::class));
+        }
     }
 
     protected function configure(): void
@@ -71,12 +75,13 @@ class TranslationUpdateCommand extends Command
                 new InputArgument('locale', InputArgument::REQUIRED, 'The locale'),
                 new InputArgument('bundle', InputArgument::OPTIONAL, 'The bundle name or directory where to load the messages'),
                 new InputOption('prefix', null, InputOption::VALUE_OPTIONAL, 'Override the default prefix', '__'),
+                new InputOption('no-fill', null, InputOption::VALUE_NONE, 'Extract translation keys without filling in values'),
                 new InputOption('format', null, InputOption::VALUE_OPTIONAL, 'Override the default output format', 'xlf12'),
                 new InputOption('dump-messages', null, InputOption::VALUE_NONE, 'Should the messages be dumped in the console'),
                 new InputOption('force', null, InputOption::VALUE_NONE, 'Should the extract be done'),
                 new InputOption('clean', null, InputOption::VALUE_NONE, 'Should clean not found messages'),
                 new InputOption('domain', null, InputOption::VALUE_OPTIONAL, 'Specify the domain to extract'),
-                new InputOption('sort', null, InputOption::VALUE_OPTIONAL, 'Return list of messages sorted alphabetically (only works with --dump-messages)', 'asc'),
+                new InputOption('sort', null, InputOption::VALUE_OPTIONAL, 'Return list of messages sorted alphabetically'),
                 new InputOption('as-tree', null, InputOption::VALUE_OPTIONAL, 'Dump the messages as a tree-like structure: The given value defines the level where to switch to inline YAML'),
             ])
             ->setHelp(<<<'EOF'
@@ -85,7 +90,8 @@ of a given bundle or the default translations directory. It can display them or 
 the new ones into the translation files.
 
 When new translation strings are found it can automatically add a prefix to the translation
-message.
+message. However, if the <comment>--no-fill</comment> option is used, the <comment>--prefix</comment>
+option has no effect, since the translation values are left empty.
 
 Example running against a Bundle (AcmeBundle)
 
@@ -100,7 +106,7 @@ Example running against default messages directory
 You can sort the output with the <comment>--sort</> flag:
 
     <info>php %command.full_name% --dump-messages --sort=asc en AcmeBundle</info>
-    <info>php %command.full_name% --dump-messages --sort=desc fr</info>
+    <info>php %command.full_name% --force --sort=desc fr</info>
 
 You can dump a tree-like structure using the yaml format with <comment>--as-tree</> flag:
 
@@ -113,9 +119,6 @@ EOF
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $io = new SymfonyStyle($input, $output);
-        $errorIo = $output instanceof ConsoleOutputInterface ? new SymfonyStyle($input, $output->getErrorOutput()) : $io;
-
         $io = new SymfonyStyle($input, $output);
         $errorIo = $io->getErrorStyle();
 
@@ -181,7 +184,8 @@ EOF
         $io->comment(\sprintf('Generating "<info>%s</info>" translation files for "<info>%s</info>"', $input->getArgument('locale'), $currentName));
 
         $io->comment('Parsing templates...');
-        $extractedCatalogue = $this->extractMessages($input->getArgument('locale'), $codePaths, $input->getOption('prefix'));
+        $prefix = $input->getOption('no-fill') ? self::NO_FILL_PREFIX : $input->getOption('prefix');
+        $extractedCatalogue = $this->extractMessages($input->getArgument('locale'), $codePaths, $prefix);
 
         $io->comment('Loading translation files...');
         $currentCatalogue = $this->loadCurrentMessages($input->getArgument('locale'), $transPaths);
@@ -207,6 +211,15 @@ EOF
 
         $operation->moveMessagesToIntlDomainsIfPossible('new');
 
+        if ($sort = $input->getOption('sort')) {
+            $sort = strtolower($sort);
+            if (!\in_array($sort, self::SORT_ORDERS, true)) {
+                $errorIo->error(['Wrong sort order', 'Supported formats are: '.implode(', ', self::SORT_ORDERS).'.']);
+
+                return 1;
+            }
+        }
+
         // show compiled list of messages
         if (true === $input->getOption('dump-messages')) {
             $extractedMessagesCount = 0;
@@ -223,19 +236,10 @@ EOF
 
                 $domainMessagesCount = \count($list);
 
-                if ($sort = $input->getOption('sort')) {
-                    $sort = strtolower($sort);
-                    if (!\in_array($sort, self::SORT_ORDERS, true)) {
-                        $errorIo->error(['Wrong sort order', 'Supported formats are: '.implode(', ', self::SORT_ORDERS).'.']);
-
-                        return 1;
-                    }
-
-                    if (self::DESC === $sort) {
-                        rsort($list);
-                    } else {
-                        sort($list);
-                    }
+                if (self::DESC === $sort) {
+                    rsort($list);
+                } else {
+                    sort($list);
                 }
 
                 $io->section(\sprintf('Messages extracted for domain "<info>%s</info>" (%d message%s)', $domain, $domainMessagesCount, $domainMessagesCount > 1 ? 's' : ''));
@@ -266,7 +270,16 @@ EOF
                 $bundleTransPath = end($transPaths);
             }
 
-            $this->writer->write($operation->getResult(), $format, ['path' => $bundleTransPath, 'default_locale' => $this->defaultLocale, 'xliff_version' => $xliffVersion, 'as_tree' => $input->getOption('as-tree'), 'inline' => $input->getOption('as-tree') ?? 0]);
+            $operationResult = $operation->getResult();
+            if ($sort) {
+                $operationResult = $this->sortCatalogue($operationResult, $sort);
+            }
+
+            if (true === $input->getOption('no-fill')) {
+                $this->removeNoFillTranslations($operationResult);
+            }
+
+            $this->writer->write($operationResult, $format, ['path' => $bundleTransPath, 'default_locale' => $this->defaultLocale, 'xliff_version' => $xliffVersion, 'as_tree' => $input->getOption('as-tree'), 'inline' => $input->getOption('as-tree') ?? 0]);
 
             if (true === $input->getOption('dump-messages')) {
                 $resultMessage .= ' and translation files were updated';
@@ -365,6 +378,54 @@ EOF
         return $filteredCatalogue;
     }
 
+    private function sortCatalogue(MessageCatalogue $catalogue, string $sort): MessageCatalogue
+    {
+        $sortedCatalogue = new MessageCatalogue($catalogue->getLocale());
+
+        foreach ($catalogue->getDomains() as $domain) {
+            // extract intl-icu messages only
+            $intlDomain = $domain.MessageCatalogueInterface::INTL_DOMAIN_SUFFIX;
+            if ($intlMessages = $catalogue->all($intlDomain)) {
+                if (self::DESC === $sort) {
+                    krsort($intlMessages);
+                } elseif (self::ASC === $sort) {
+                    ksort($intlMessages);
+                }
+
+                $sortedCatalogue->add($intlMessages, $intlDomain);
+            }
+
+            // extract all messages and subtract intl-icu messages
+            if ($messages = array_diff($catalogue->all($domain), $intlMessages)) {
+                if (self::DESC === $sort) {
+                    krsort($messages);
+                } elseif (self::ASC === $sort) {
+                    ksort($messages);
+                }
+
+                $sortedCatalogue->add($messages, $domain);
+            }
+
+            if ($metadata = $catalogue->getMetadata('', $intlDomain)) {
+                foreach ($metadata as $k => $v) {
+                    $sortedCatalogue->setMetadata($k, $v, $intlDomain);
+                }
+            }
+
+            if ($metadata = $catalogue->getMetadata('', $domain)) {
+                foreach ($metadata as $k => $v) {
+                    $sortedCatalogue->setMetadata($k, $v, $domain);
+                }
+            }
+        }
+
+        foreach ($catalogue->getResources() as $resource) {
+            $sortedCatalogue->addResource($resource);
+        }
+
+        return $sortedCatalogue;
+    }
+
     private function extractMessages(string $locale, array $transPaths, string $prefix): MessageCatalogue
     {
         $extractedCatalogue = new MessageCatalogue($locale);
@@ -431,5 +492,14 @@ EOF
         }
 
         return $codePaths;
+    }
+
+    private function removeNoFillTranslations(MessageCatalogueInterface $operation): void
+    {
+        foreach ($operation->all('messages') as $key => $message) {
+            if (str_starts_with($message, self::NO_FILL_PREFIX)) {
+                $operation->set($key, '', 'messages');
+            }
+        }
     }
 }

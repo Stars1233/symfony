@@ -21,8 +21,6 @@ use Symfony\Component\TypeInfo\TypeContext\TypeContextFactory;
  *
  * @author Mathias Arlaud <mathias.arlaud@gmail.com>
  * @author Baptiste Leduc <baptiste.leduc@gmail.com>
- *
- * @internal
  */
 final readonly class ReflectionParameterTypeResolver implements TypeResolverInterface
 {

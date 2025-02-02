@@ -56,13 +56,14 @@ class Connection
     private ?ReceiveMessageResult $currentResponse = null;
     /** @var array[] */
     private array $buffer = [];
-    private ?string $queueUrl;
 
-    public function __construct(array $configuration, ?SqsClient $client = null, ?string $queueUrl = null)
-    {
+    public function __construct(
+        array $configuration,
+        ?SqsClient $client = null,
+        private ?string $queueUrl = null,
+    ) {
         $this->configuration = array_replace_recursive(self::DEFAULT_OPTIONS, $configuration);
         $this->client = $client ?? new SqsClient([]);
-        $this->queueUrl = $queueUrl;
     }
 
     public function __sleep(): array
@@ -156,7 +157,7 @@ class Connection
         }
 
         $parsedPath = explode('/', ltrim($params['path'] ?? '/', '/'));
-        if (\count($parsedPath) > 0 && ($queueName = end($parsedPath))) {
+        if ($queueName = end($parsedPath)) {
             $configuration['queue_name'] = $queueName;
         }
         $configuration['account'] = 2 === \count($parsedPath) ? $parsedPath[0] : $options['account'] ?? self::DEFAULT_OPTIONS['account'];
@@ -300,6 +301,23 @@ class Connection
         $this->client->deleteMessage([
             'QueueUrl' => $this->getQueueUrl(),
             'ReceiptHandle' => $id,
+        ]);
+    }
+
+    /**
+     * @param int|null $seconds the minimum duration the message should be kept alive
+     */
+    public function keepalive(string $id, ?int $seconds = null): void
+    {
+        $visibilityTimeout = $this->configuration['visibility_timeout'];
+        if (null !== $visibilityTimeout && null !== $seconds && $visibilityTimeout < $seconds) {
+            throw new TransportException(\sprintf('SQS visibility_timeout (%ds) cannot be smaller than the keepalive interval (%ds).', $visibilityTimeout, $seconds));
+        }
+
+        $this->client->changeMessageVisibility([
+            'QueueUrl' => $this->getQueueUrl(),
+            'ReceiptHandle' => $id,
+            'VisibilityTimeout' => $this->configuration['visibility_timeout'],
         ]);
     }
 

@@ -130,7 +130,7 @@ class Connection
                         }
 
                         try {
-                            if (\extension_loaded('redis') && version_compare(phpversion('redis'), '6.0.0', '>=')) {
+                            if (\extension_loaded('redis') && version_compare(phpversion('redis'), '6.0.0-dev', '>=')) {
                                 $params = [
                                     'host' => $host,
                                     'port' => $port,
@@ -140,12 +140,12 @@ class Connection
                                     'readTimeout' => $options['read_timeout'],
                                 ];
 
-                                $sentinel = new \RedisSentinel($params);
+                                $sentinel = @new \RedisSentinel($params);
                             } else {
-                                $sentinel = new $sentinelClass($host, $port, $options['timeout'], $options['persistent_id'], $options['retry_interval'], $options['read_timeout']);
+                                $sentinel = @new $sentinelClass($host, $port, $options['timeout'], $options['persistent_id'], $options['retry_interval'], $options['read_timeout']);
                             }
 
-                            if ($address = $sentinel->getMasterAddrByName($sentinelMaster)) {
+                            if ($address = @$sentinel->getMasterAddrByName($sentinelMaster)) {
                                 [$host, $port] = $address;
                             }
                         } catch (\RedisException|\Relay\Exception $redisException) {
@@ -193,7 +193,21 @@ class Connection
         }
 
         $connect = isset($params['persistent_id']) ? 'pconnect' : 'connect';
-        $redis->{$connect}($host, $port, $params['timeout'], $params['persistent_id'], $params['retry_interval'], $params['read_timeout'], ...(\defined('Redis::SCAN_PREFIX') || \extension_loaded('relay')) ? [['stream' => $params['ssl'] ?? null]] : []);
+
+        @$redis->{$connect}($host, $port, $params['timeout'], $params['persistent_id'], $params['retry_interval'], $params['read_timeout'], ...(\defined('Redis::SCAN_PREFIX') || \extension_loaded('relay')) ? [['stream' => $params['ssl'] ?? null]] : []);
+
+        $error = null;
+        set_error_handler(function ($type, $msg) use (&$error) { $error = $msg; });
+
+        try {
+            $isConnected = $redis->isConnected();
+        } finally {
+            restore_error_handler();
+        }
+
+        if (!$isConnected) {
+            throw new InvalidArgumentException('Redis connection failed: '.(preg_match('/^Redis::p?connect\(\): (.*)/', $error ?? $redis->getLastError() ?? '', $matches) ? \sprintf(' (%s)', $matches[1]) : ''));
+        }
 
         $redis->setOption($redis instanceof \Redis ? \Redis::OPT_SERIALIZER : Relay::OPT_SERIALIZER, $params['serializer']);
 
@@ -293,7 +307,7 @@ class Connection
         }
 
         if (isset($params['host'])) {
-            $options['host'] = $params['host'] ?? $options['host'];
+            $options['host'] = $params['host'];
             $options['port'] = $params['port'] ?? $options['port'];
 
             $pathParts = explode('/', rtrim($params['path'] ?? '', '/'));
@@ -521,7 +535,7 @@ class Connection
 
         try {
             if ($delayInMs > 0) { // the delay is <= 0 for queued messages
-                $id = uniqid('', true);
+                $id = base64_encode(random_bytes(9));
                 $message = json_encode([
                     'body' => $body,
                     'headers' => $headers,

@@ -50,6 +50,7 @@ trait PriorityTaggedServiceTrait
             $tagName = $tagName->getTag();
         }
 
+        $parameterBag = $container->getParameterBag();
         $i = 0;
         $services = [];
 
@@ -81,11 +82,13 @@ trait PriorityTaggedServiceTrait
                 }
 
                 if (null !== $indexAttribute && isset($attribute[$indexAttribute])) {
-                    $index = $attribute[$indexAttribute];
-                } elseif (null === $defaultIndex && $defaultPriorityMethod && $class) {
+                    $index = $parameterBag->resolveValue($attribute[$indexAttribute]);
+                }
+                if (null === $index && null === $defaultIndex && $defaultPriorityMethod && $class) {
                     $defaultIndex = PriorityTaggedServiceUtil::getDefault($container, $serviceId, $class, $defaultIndexMethod ?? 'getDefaultName', $tagName, $indexAttribute, $checkTaggedItem);
                 }
-                $index ??= $defaultIndex ??= $serviceId;
+                $decorated = $definition->getTag('container.decorator')[0]['id'] ?? null;
+                $index = $index ?? $defaultIndex ?? $defaultIndex = $decorated ?? $serviceId;
 
                 $services[] = [$priority, ++$i, $index, $serviceId, $class];
             }
@@ -130,6 +133,10 @@ class PriorityTaggedServiceUtil
                 return 'priority' === $indexAttribute ? $attribute->newInstance()->priority : $attribute->newInstance()->index;
             }
 
+            return null;
+        }
+
+        if ($r->isInterface()) {
             return null;
         }
 

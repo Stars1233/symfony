@@ -52,6 +52,7 @@ final class UnsupportedSchemeExceptionTest extends TestCase
             Bridge\Isendpro\IsendproTransportFactory::class => false,
             Bridge\KazInfoTeh\KazInfoTehTransportFactory::class => false,
             Bridge\LightSms\LightSmsTransportFactory::class => false,
+            Bridge\LineBot\LineBotTransportFactory::class => false,
             Bridge\LineNotify\LineNotifyTransportFactory::class => false,
             Bridge\LinkedIn\LinkedInTransportFactory::class => false,
             Bridge\Lox24\Lox24TransportFactory::class => false,
@@ -93,6 +94,7 @@ final class UnsupportedSchemeExceptionTest extends TestCase
             Bridge\Smsmode\SmsmodeTransportFactory::class => false,
             Bridge\SmsSluzba\SmsSluzbaTransportFactory::class => false,
             Bridge\SpotHit\SpotHitTransportFactory::class => false,
+            Bridge\Sweego\SweegoTransportFactory::class => false,
             Bridge\Telegram\TelegramTransportFactory::class => false,
             Bridge\Telnyx\TelnyxTransportFactory::class => false,
             Bridge\Termii\TermiiTransportFactory::class => false,
@@ -127,21 +129,27 @@ final class UnsupportedSchemeExceptionTest extends TestCase
         yield ['bandwidth', 'symfony/bandwidth-notifier'];
         yield ['bluesky', 'symfony/bluesky-notifier'];
         yield ['brevo', 'symfony/brevo-notifier'];
+        yield ['chatwork', 'symfony/chatwork-notifier'];
         yield ['clickatell', 'symfony/clickatell-notifier'];
         yield ['clicksend', 'symfony/click-send-notifier'];
         yield ['contact-everyone', 'symfony/contact-everyone-notifier'];
         yield ['discord', 'symfony/discord-notifier'];
+        yield ['engagespot', 'symfony/engagespot-notifier'];
         yield ['esendex', 'symfony/esendex-notifier'];
+        yield ['expo', 'symfony/expo-notifier'];
         yield ['fakechat', 'symfony/fake-chat-notifier'];
         yield ['fakesms', 'symfony/fake-sms-notifier'];
         yield ['firebase', 'symfony/firebase-notifier'];
+        yield ['forty-six-elks', 'symfony/forty-six-elks-notifier'];
         yield ['freemobile', 'symfony/free-mobile-notifier'];
         yield ['gatewayapi', 'symfony/gateway-api-notifier'];
         yield ['googlechat', 'symfony/google-chat-notifier'];
         yield ['infobip', 'symfony/infobip-notifier'];
         yield ['iqsms', 'symfony/iqsms-notifier'];
         yield ['isendpro', 'symfony/isendpro-notifier'];
+        yield ['kaz-info-teh', 'symfony/kaz-info-teh-notifier'];
         yield ['lightsms', 'symfony/light-sms-notifier'];
+        yield ['linebot', 'symfony/line-bot-notifier'];
         yield ['linenotify', 'symfony/line-notify-notifier'];
         yield ['linkedin', 'symfony/linked-in-notifier'];
         yield ['lox24', 'symfony/lox24-notifier'];
@@ -157,9 +165,12 @@ final class UnsupportedSchemeExceptionTest extends TestCase
         yield ['ntfy', 'symfony/ntfy-notifier'];
         yield ['octopush', 'symfony/octopush-notifier'];
         yield ['onesignal', 'symfony/one-signal-notifier'];
+        yield ['orange-sms', 'symfony/orange-sms-notifier'];
         yield ['ovhcloud', 'symfony/ovh-cloud-notifier'];
+        yield ['pagerduty', 'symfony/pager-duty-notifier'];
         yield ['plivo', 'symfony/plivo-notifier'];
         yield ['primotexto', 'symfony/primotexto-notifier'];
+        yield ['pushover', 'symfony/pushover-notifier'];
         yield ['redlink', 'symfony/redlink-notifier'];
         yield ['ringcentral', 'symfony/ring-central-notifier'];
         yield ['rocketchat', 'symfony/rocket-chat-notifier'];
@@ -183,6 +194,8 @@ final class UnsupportedSchemeExceptionTest extends TestCase
         yield ['twilio', 'symfony/twilio-notifier'];
         yield ['twitter', 'symfony/twitter-notifier'];
         yield ['unifonic', 'symfony/unifonic-notifier'];
+        yield ['vonage', 'symfony/vonage-notifier'];
+        yield ['yunpian', 'symfony/yunpian-notifier'];
         yield ['zendesk', 'symfony/zendesk-notifier'];
         yield ['zulip', 'symfony/zulip-notifier'];
         yield ['goip', 'symfony/go-ip-notifier'];

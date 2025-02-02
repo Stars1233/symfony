@@ -16,7 +16,9 @@ use Symfony\Component\TypeInfo\Exception\InvalidArgumentException;
 use Symfony\Component\TypeInfo\Exception\UnsupportedException;
 use Symfony\Component\TypeInfo\Tests\Fixtures\AbstractDummy;
 use Symfony\Component\TypeInfo\Tests\Fixtures\Dummy;
+use Symfony\Component\TypeInfo\Tests\Fixtures\DummyBackedEnum;
 use Symfony\Component\TypeInfo\Tests\Fixtures\DummyCollection;
+use Symfony\Component\TypeInfo\Tests\Fixtures\DummyEnum;
 use Symfony\Component\TypeInfo\Tests\Fixtures\DummyWithTemplates;
 use Symfony\Component\TypeInfo\Type;
 use Symfony\Component\TypeInfo\TypeContext\TypeContext;
@@ -60,7 +62,7 @@ class StringTypeResolverTest extends TestCase
     /**
      * @return iterable<array{0: Type, 1: string, 2?: TypeContext}>
      */
-    public function resolveDataProvider(): iterable
+    public static function resolveDataProvider(): iterable
     {
         $typeContextFactory = new TypeContextFactory(new StringTypeResolver());
 
@@ -138,6 +140,8 @@ class StringTypeResolverTest extends TestCase
         yield [Type::object(Dummy::class), 'static', $typeContextFactory->createFromClassName(Dummy::class, AbstractDummy::class)];
         yield [Type::object(AbstractDummy::class), 'parent', $typeContextFactory->createFromClassName(Dummy::class)];
         yield [Type::object(Dummy::class), 'Dummy', $typeContextFactory->createFromClassName(Dummy::class)];
+        yield [Type::enum(DummyEnum::class), 'DummyEnum', $typeContextFactory->createFromClassName(DummyEnum::class)];
+        yield [Type::enum(DummyBackedEnum::class), 'DummyBackedEnum', $typeContextFactory->createFromClassName(DummyBackedEnum::class)];
         yield [Type::template('T', Type::union(Type::int(), Type::string())), 'T', $typeContextFactory->createFromClassName(DummyWithTemplates::class)];
         yield [Type::template('V'), 'V', $typeContextFactory->createFromReflection(new \ReflectionMethod(DummyWithTemplates::class, 'getPrice'))];
 
@@ -145,18 +149,20 @@ class StringTypeResolverTest extends TestCase
         yield [Type::nullable(Type::int()), '?int'];
 
         // generic
-        yield [Type::generic(Type::object(), Type::string(), Type::bool()), 'object<string, bool>'];
-        yield [Type::generic(Type::object(), Type::generic(Type::string(), Type::bool())), 'object<string<bool>>'];
+        yield [Type::generic(Type::object(\DateTime::class), Type::string(), Type::bool()), \DateTime::class.'<string, bool>'];
+        yield [Type::generic(Type::object(\DateTime::class), Type::generic(Type::object(\Stringable::class), Type::bool())), \sprintf('%s<%s<bool>>', \DateTime::class, \Stringable::class)];
         yield [Type::int(), 'int<0, 100>'];
 
         // union
         yield [Type::union(Type::int(), Type::string()), 'int|string'];
+        yield [Type::mixed(), 'int|mixed'];
+        yield [Type::mixed(), 'mixed|int'];
 
         // intersection
-        yield [Type::intersection(Type::int(), Type::string()), 'int&string'];
+        yield [Type::intersection(Type::object(\DateTime::class), Type::object(\Stringable::class)), \DateTime::class.'&'.\Stringable::class];
 
         // DNF
-        yield [Type::union(Type::int(), Type::intersection(Type::string(), Type::bool())), 'int|(string&bool)'];
+        yield [Type::union(Type::int(), Type::intersection(Type::object(\DateTime::class), Type::object(\Stringable::class))), \sprintf('int|(%s&%s)', \DateTime::class, \Stringable::class)];
 
         // collection objects
         yield [Type::collection(Type::object(\Traversable::class)), \Traversable::class];

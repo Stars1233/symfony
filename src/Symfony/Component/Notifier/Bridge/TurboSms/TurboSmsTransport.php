@@ -87,8 +87,14 @@ final class TurboSmsTransport extends AbstractTransport
         if (200 === $response->getStatusCode()) {
             $success = $response->toArray(false);
 
+            if (null === $messageId = $success['response_result'][0]['message_id']) {
+                $responseResult = $success['response_result'][0];
+
+                throw new TransportException(sprintf('Unable to send SMS with TurboSMS: Error code %d with message "%s".', (int) $responseResult['response_code'], $responseResult['response_status']), $response);
+            }
+
             $sentMessage = new SentMessage($message, (string) $this);
-            $sentMessage->setMessageId($success['response_result'][0]['message_id']);
+            $sentMessage->setMessageId($messageId);
 
             return $sentMessage;
         }
@@ -108,7 +114,7 @@ final class TurboSmsTransport extends AbstractTransport
     private function assertValidSubject(string $subject): void
     {
         // Detect if there is at least one cyrillic symbol in the text
-        if (preg_match("/\p{Cyrillic}/u", $subject)) {
+        if (preg_match('/\p{Cyrillic}/u', $subject)) {
             $subjectLimit = self::SUBJECT_CYRILLIC_LIMIT;
             $symbols = 'cyrillic';
         } else {

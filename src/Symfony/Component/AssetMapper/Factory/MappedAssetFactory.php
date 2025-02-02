@@ -24,6 +24,7 @@ use Symfony\Component\Filesystem\Filesystem;
 class MappedAssetFactory implements MappedAssetFactoryInterface
 {
     private const PREDIGESTED_REGEX = '/-([0-9a-zA-Z]{7,128}\.digested)/';
+    private const PUBLIC_DIGEST_LENGTH = 7;
 
     private array $assetsCache = [];
     private array $assetsBeingCreated = [];
@@ -89,10 +90,7 @@ class MappedAssetFactory implements MappedAssetFactoryInterface
             return [hash('xxh128', $content), false];
         }
 
-        return [
-            hash_file('xxh128', $asset->sourcePath),
-            false,
-        ];
+        return [hash_file('xxh128', $asset->sourcePath), false];
     }
 
     private function compileContent(MappedAsset $asset): ?string
@@ -118,8 +116,10 @@ class MappedAssetFactory implements MappedAssetFactoryInterface
         if ($isPredigested) {
             return $this->assetsPathResolver->resolvePublicPath($asset->logicalPath);
         }
-
-        $digestedPath = preg_replace_callback('/\.(\w+)$/', fn ($matches) => "-{$digest}{$matches[0]}", $asset->logicalPath);
+        $digest = base64_encode(hex2bin($digest));
+        $digest = substr($digest, 0, self::PUBLIC_DIGEST_LENGTH);
+        $digest = strtr($digest, '+/', '-_');
+        $digestedPath = preg_replace('/\.(\w+)$/', "-{$digest}\\0", $asset->logicalPath);
 
         return $this->assetsPathResolver->resolvePublicPath($digestedPath);
     }
@@ -129,6 +129,6 @@ class MappedAssetFactory implements MappedAssetFactoryInterface
         $sourcePath = realpath($sourcePath);
         $vendorDir = realpath($this->vendorDir);
 
-        return $sourcePath && str_starts_with($sourcePath, $vendorDir);
+        return $sourcePath && $vendorDir && str_starts_with($sourcePath, $vendorDir);
     }
 }

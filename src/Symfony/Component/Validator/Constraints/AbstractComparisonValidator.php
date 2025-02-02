@@ -12,6 +12,7 @@
 namespace Symfony\Component\Validator\Constraints;
 
 use Symfony\Component\PropertyAccess\Exception\NoSuchPropertyException;
+use Symfony\Component\PropertyAccess\Exception\UninitializedPropertyException;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
 use Symfony\Component\Validator\Constraint;
@@ -27,11 +28,8 @@ use Symfony\Component\Validator\Exception\UnexpectedTypeException;
  */
 abstract class AbstractComparisonValidator extends ConstraintValidator
 {
-    private ?PropertyAccessorInterface $propertyAccessor;
-
-    public function __construct(?PropertyAccessorInterface $propertyAccessor = null)
+    public function __construct(private ?PropertyAccessorInterface $propertyAccessor = null)
     {
-        $this->propertyAccessor = $propertyAccessor;
     }
 
     public function validate(mixed $value, Constraint $constraint): void
@@ -53,6 +51,8 @@ abstract class AbstractComparisonValidator extends ConstraintValidator
                 $comparedValue = $this->getPropertyAccessor()->getValue($object, $path);
             } catch (NoSuchPropertyException $e) {
                 throw new ConstraintDefinitionException(\sprintf('Invalid property path "%s" provided to "%s" constraint: ', $path, get_debug_type($constraint)).$e->getMessage(), 0, $e);
+            } catch (UninitializedPropertyException) {
+                $comparedValue = null;
             }
         } else {
             $comparedValue = $constraint->value;

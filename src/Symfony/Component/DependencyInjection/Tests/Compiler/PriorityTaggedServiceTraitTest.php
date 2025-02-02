@@ -151,6 +151,11 @@ class PriorityTaggedServiceTraitTest extends TestCase
 
         $container->register('service3', IntTagClass::class)->addTag('my_custom_tag');
 
+        $container->register('service4', HelloInterface::class)->addTag('my_custom_tag');
+
+        $definition = $container->register('debug.service5', \stdClass::class)->addTag('my_custom_tag');
+        $definition->addTag('container.decorator', ['id' => 'service5']);
+
         $priorityTaggedServiceTraitImplementation = new PriorityTaggedServiceTraitImplementation();
 
         $tag = new TaggedIteratorArgument('my_custom_tag', 'foo', 'getFooBar');
@@ -158,6 +163,8 @@ class PriorityTaggedServiceTraitTest extends TestCase
             'bar_tab_class_with_defaultmethod' => new TypedReference('service2', BarTagClass::class),
             'service1' => new TypedReference('service1', FooTagClass::class),
             '10' => new TypedReference('service3', IntTagClass::class),
+            'service4' => new TypedReference('service4', HelloInterface::class),
+            'service5' => new TypedReference('debug.service5', \stdClass::class),
         ];
         $services = $priorityTaggedServiceTraitImplementation->test($tag, $container);
         $this->assertSame(array_keys($expected), array_keys($services));
@@ -226,6 +233,34 @@ class PriorityTaggedServiceTraitTest extends TestCase
         $this->assertSame(array_keys($expected), array_keys($services));
         $this->assertEquals($expected, $priorityTaggedServiceTraitImplementation->test($tag, $container));
     }
+
+    public function testResolveIndexedTags()
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('custom_param_service1', 'bar');
+        $container->setParameter('custom_param_service2', 'baz');
+        $container->setParameter('custom_param_service2_empty', '');
+        $container->setParameter('custom_param_service2_null', null);
+        $container->register('service1')->addTag('my_custom_tag', ['foo' => '%custom_param_service1%']);
+
+        $definition = $container->register('service2', BarTagClass::class);
+        $definition->addTag('my_custom_tag', ['foo' => '%custom_param_service2%', 'priority' => 100]);
+        $definition->addTag('my_custom_tag', ['foo' => '%custom_param_service2_empty%']);
+        $definition->addTag('my_custom_tag', ['foo' => '%custom_param_service2_null%']);
+
+        $priorityTaggedServiceTraitImplementation = new PriorityTaggedServiceTraitImplementation();
+
+        $tag = new TaggedIteratorArgument('my_custom_tag', 'foo', 'getFooBar');
+        $expected = [
+            'baz' => new TypedReference('service2', BarTagClass::class),
+            'bar' => new Reference('service1'),
+            '' => new TypedReference('service2', BarTagClass::class),
+            'bar_tab_class_with_defaultmethod' => new TypedReference('service2', BarTagClass::class),
+        ];
+        $services = $priorityTaggedServiceTraitImplementation->test($tag, $container);
+        $this->assertSame(array_keys($expected), array_keys($services));
+        $this->assertEquals($expected, $priorityTaggedServiceTraitImplementation->test($tag, $container));
+    }
 }
 
 class PriorityTaggedServiceTraitImplementation
@@ -246,4 +281,9 @@ class HelloNamedService extends \stdClass
 #[AsTaggedItem(priority: 2)]
 class HelloNamedService2
 {
+}
+
+interface HelloInterface
+{
+    public static function getFooBar(): string;
 }

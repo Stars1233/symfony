@@ -27,6 +27,7 @@ use Symfony\Component\PropertyInfo\Tests\Fixtures\TraitUsage\DummyUsedInTrait;
 use Symfony\Component\PropertyInfo\Tests\Fixtures\TraitUsage\DummyUsingTrait;
 use Symfony\Component\PropertyInfo\Type as LegacyType;
 use Symfony\Component\TypeInfo\Type;
+use Symfony\Component\TypeInfo\Type\NullableType;
 
 /**
  * @author Kévin Dunglas <dunglas@gmail.com>
@@ -164,6 +165,7 @@ class PhpDocExtractorTest extends TestCase
             ['listOfStrings', [new LegacyType(LegacyType::BUILTIN_TYPE_ARRAY, false, null, true, new LegacyType(LegacyType::BUILTIN_TYPE_INT), new LegacyType(LegacyType::BUILTIN_TYPE_STRING))], null, null],
             ['self', [new LegacyType(LegacyType::BUILTIN_TYPE_OBJECT, false, Dummy::class)], null, null],
             ['collectionAsObject', [new LegacyType(LegacyType::BUILTIN_TYPE_OBJECT, false, DummyCollection::class, true, [new LegacyType(LegacyType::BUILTIN_TYPE_INT)], [new LegacyType(LegacyType::BUILTIN_TYPE_STRING)])], null, null],
+            ['nullableTypedCollection', [new LegacyType(LegacyType::BUILTIN_TYPE_ARRAY, true, null, true, new LegacyType(LegacyType::BUILTIN_TYPE_INT), new LegacyType(LegacyType::BUILTIN_TYPE_OBJECT, false, Dummy::class))], null, null],
         ];
     }
 
@@ -548,6 +550,7 @@ class PhpDocExtractorTest extends TestCase
         yield ['collection', Type::list(Type::object(\DateTimeImmutable::class)), null, null];
         yield ['nestedCollection', Type::list(Type::list(Type::string())), null, null];
         yield ['mixedCollection', Type::array(), null, null];
+        yield ['nullableTypedCollection', Type::nullable(Type::list(Type::object(Dummy::class))), null, null];
         yield ['a', Type::int(), 'A.', null];
         yield ['b', Type::nullable(Type::object(ParentDummy::class)), 'B.', null];
         yield ['c', Type::nullable(Type::bool()), null, null];
@@ -560,7 +563,14 @@ class PhpDocExtractorTest extends TestCase
         yield ['f', Type::list(Type::object(\DateTimeImmutable::class)), null, null];
         yield ['g', Type::nullable(Type::array()), 'Nullable array.', null];
         yield ['h', Type::nullable(Type::string()), null, null];
-        yield ['i', Type::union(Type::int(), Type::string(), Type::null()), null, null];
+
+        // BC layer for type-info < 7.2
+        if (!class_exists(NullableType::class)) {
+            yield ['i', Type::union(Type::int(), Type::string(), Type::null()), null, null];
+        } else {
+            yield ['i', Type::nullable(Type::union(Type::int(), Type::string())), null, null];
+        }
+
         yield ['j', Type::nullable(Type::object(\DateTimeImmutable::class)), null, null];
         yield ['nullableCollectionOfNonNullableElements', Type::nullable(Type::list(Type::int())), null, null];
         yield ['donotexist', null, null, null];
@@ -571,6 +581,7 @@ class PhpDocExtractorTest extends TestCase
         yield ['arrayOfMixed', Type::dict(Type::mixed()), null, null];
         yield ['listOfStrings', Type::list(Type::string()), null, null];
         yield ['self', Type::object(Dummy::class), null, null];
+        yield ['collectionAsObject', Type::collection(Type::object(DummyCollection::class), Type::string(), Type::int()), null, null];
     }
 
     /**
@@ -626,7 +637,14 @@ class PhpDocExtractorTest extends TestCase
         yield ['f', null];
         yield ['g', Type::nullable(Type::array())];
         yield ['h', Type::nullable(Type::string())];
-        yield ['i', Type::union(Type::int(), Type::string(), Type::null())];
+
+        // BC layer for type-info < 7.2
+        if (!class_exists(NullableType::class)) {
+            yield ['i', Type::union(Type::int(), Type::string(), Type::null())];
+        } else {
+            yield ['i', Type::nullable(Type::union(Type::int(), Type::string()))];
+        }
+
         yield ['j', Type::nullable(Type::object(\DateTimeImmutable::class))];
         yield ['nullableCollectionOfNonNullableElements', Type::nullable(Type::list(Type::int()))];
         yield ['donotexist', null];
@@ -690,7 +708,14 @@ class PhpDocExtractorTest extends TestCase
         yield ['f', Type::list(Type::object(\DateTimeImmutable::class))];
         yield ['g', Type::nullable(Type::array())];
         yield ['h', Type::nullable(Type::string())];
-        yield ['i', Type::union(Type::int(), Type::string(), Type::null())];
+
+        // BC layer for type-info < 7.2
+        if (!class_exists(NullableType::class)) {
+            yield ['i', Type::union(Type::int(), Type::string(), Type::null())];
+        } else {
+            yield ['i', Type::nullable(Type::union(Type::int(), Type::string()))];
+        }
+
         yield ['j', Type::nullable(Type::object(\DateTimeImmutable::class))];
         yield ['nullableCollectionOfNonNullableElements', Type::nullable(Type::list(Type::int()))];
         yield ['nonNullableCollectionOfNullableElements', Type::list(Type::nullable(Type::int()))];

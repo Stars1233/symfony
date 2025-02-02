@@ -433,6 +433,11 @@ abstract class AbstractString implements \Stringable, \JsonSerializable
 
     abstract public function snake(): static;
 
+    public function kebab(): static
+    {
+        return $this->snake()->replace('_', '-');
+    }
+
     abstract public function splice(string $replacement, int $start = 0, ?int $length = null): static;
 
     /**
@@ -620,11 +625,13 @@ abstract class AbstractString implements \Stringable, \JsonSerializable
         }
 
         $desiredLength = $length;
-        if (TruncateMode::WordAfter === $cut || TruncateMode::WordBefore === $cut || !$cut) {
+        if (TruncateMode::WordAfter === $cut || !$cut) {
             if (null === $length = $this->indexOf([' ', "\r", "\n", "\t"], ($length ?: 1) - 1)) {
                 return clone $this;
             }
 
+            $length += $ellipsisLength;
+        } elseif (TruncateMode::WordBefore === $cut && null !== $this->indexOf([' ', "\r", "\n", "\t"], ($length ?: 1) - 1)) {
             $length += $ellipsisLength;
         }
 

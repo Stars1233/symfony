@@ -52,6 +52,8 @@ class BinaryNode extends Node
         if ('matches' == $operator) {
             if ($this->nodes['right'] instanceof ConstantNode) {
                 $this->evaluateMatches($this->nodes['right']->evaluate([], []), '');
+            } elseif ($this->nodes['right'] instanceof self && '~' !== $this->nodes['right']->attributes['operator']) {
+                throw new SyntaxError('The regex passed to "matches" must be a string.');
             }
 
             $compiler
@@ -116,6 +118,8 @@ class BinaryNode extends Node
             case 'or':
             case '||':
                 return $left || $this->nodes['right']->evaluate($functions, $values);
+            case 'xor':
+                return $left xor $this->nodes['right']->evaluate($functions, $values);
             case 'and':
             case '&&':
                 return $left && $this->nodes['right']->evaluate($functions, $values);
@@ -130,6 +134,10 @@ class BinaryNode extends Node
                 return $left ^ $right;
             case '&':
                 return $left & $right;
+            case '<<':
+                return $left << $right;
+            case '>>':
+                return $left >> $right;
             case '==':
                 return $left == $right;
             case '===':
@@ -146,10 +154,6 @@ class BinaryNode extends Node
                 return $left >= $right;
             case '<=':
                 return $left <= $right;
-            case 'not in':
-                return !\in_array($left, $right, true);
-            case 'in':
-                return \in_array($left, $right, true);
             case '+':
                 return $left + $right;
             case '-':
@@ -173,6 +177,8 @@ class BinaryNode extends Node
             case 'matches':
                 return $this->evaluateMatches($right, $left);
         }
+
+        throw new \LogicException(\sprintf('"%s" does not support the "%s" operator.', __CLASS__, $operator));
     }
 
     public function toArray(): array

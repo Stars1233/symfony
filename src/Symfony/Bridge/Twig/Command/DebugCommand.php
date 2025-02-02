@@ -344,15 +344,13 @@ EOF
             }
 
             // format args
-            $args = array_map(function (\ReflectionParameter $param) {
+            return array_map(function (\ReflectionParameter $param) {
                 if ($param->isDefaultValueAvailable()) {
                     return $param->getName().' = '.json_encode($param->getDefaultValue());
                 }
 
                 return $param->getName();
             }, $args);
-
-            return $args;
         }
 
         return null;
@@ -414,7 +412,6 @@ EOF
         }
 
         if ($notFoundBundles = array_diff_key($bundleNames, $this->bundlesMetadata)) {
-            $alternatives = [];
             foreach ($notFoundBundles as $notFoundBundle => $path) {
                 $alternatives[$path] = $this->findAlternatives($notFoundBundle, array_keys($this->bundlesMetadata));
             }
@@ -556,7 +553,7 @@ EOF
 
     private function isAbsolutePath(string $file): bool
     {
-        return strspn($file, '/\\', 0, 1) || (\strlen($file) > 3 && ctype_alpha($file[0]) && ':' === $file[1] && strspn($file, '/\\', 2, 1)) || null !== parse_url($file, \PHP_URL_SCHEME);
+        return strspn($file, '/\\', 0, 1) || (\strlen($file) > 3 && ctype_alpha($file[0]) && ':' === $file[1] && strspn($file, '/\\', 2, 1)) || parse_url($file, \PHP_URL_SCHEME);
     }
 
     /**

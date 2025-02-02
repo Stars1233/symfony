@@ -17,6 +17,7 @@ use Twig\Node\Expression\AbstractExpression;
 use Twig\Node\Expression\ArrayExpression;
 use Twig\Node\Expression\ConstantExpression;
 use Twig\Node\Expression\NameExpression;
+use Twig\Node\Expression\Variable\ContextVariable;
 use Twig\Node\Node;
 use Twig\Node\TextNode;
 
@@ -26,7 +27,7 @@ use Twig\Node\TextNode;
 #[YieldReady]
 final class TransNode extends Node
 {
-    public function __construct(Node $body, ?Node $domain = null, ?AbstractExpression $count = null, ?AbstractExpression $vars = null, ?AbstractExpression $locale = null, int $lineno = 0, ?string $tag = null)
+    public function __construct(Node $body, ?Node $domain = null, ?AbstractExpression $count = null, ?AbstractExpression $vars = null, ?AbstractExpression $locale = null, int $lineno = 0)
     {
         $nodes = ['body' => $body];
         if (null !== $domain) {
@@ -42,7 +43,7 @@ final class TransNode extends Node
             $nodes['locale'] = $locale;
         }
 
-        parent::__construct($nodes, [], $lineno, $tag);
+        parent::__construct($nodes, [], $lineno);
     }
 
     public function compile(Compiler $compiler): void
@@ -119,7 +120,7 @@ final class TransNode extends Node
                 if ('count' === $var && $this->hasNode('count')) {
                     $vars->addElement($this->getNode('count'), $key);
                 } else {
-                    $varExpr = new NameExpression($var, $body->getTemplateLine());
+                    $varExpr = class_exists(ContextVariable::class) ? new ContextVariable($var, $body->getTemplateLine()) : new NameExpression($var, $body->getTemplateLine());
                     $varExpr->setAttribute('ignore_strict_check', $ignoreStrictCheck);
                     $vars->addElement($varExpr, $key);
                 }

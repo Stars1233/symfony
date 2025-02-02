@@ -300,7 +300,7 @@ class Parser
                         // Spec: Keys MUST be unique; first one wins.
                         // But overwriting is allowed when a merge node is used in current block.
                         if ($allowOverwrite || !isset($data[$key])) {
-                            if (!$allowOverwrite && array_key_exists($key, $data)) {
+                            if (!$allowOverwrite && \array_key_exists($key, $data)) {
                                 trigger_deprecation('symfony/yaml', '7.2', 'Duplicate key "%s" detected on line %d whilst parsing YAML. Silent handling of duplicate mapping keys in YAML is deprecated and will throw a ParseException in 8.0.', $key, $this->getRealCurrentLineNb() + 1);
                             }
 
@@ -325,7 +325,7 @@ class Parser
 
                             $data += $value;
                         } elseif ($allowOverwrite || !isset($data[$key])) {
-                            if (!$allowOverwrite && array_key_exists($key, $data)) {
+                            if (!$allowOverwrite && \array_key_exists($key, $data)) {
                                 trigger_deprecation('symfony/yaml', '7.2', 'Duplicate key "%s" detected on line %d whilst parsing YAML. Silent handling of duplicate mapping keys in YAML is deprecated and will throw a ParseException in 8.0.', $key, $this->getRealCurrentLineNb() + 1);
                             }
 
@@ -345,7 +345,7 @@ class Parser
                     // Spec: Keys MUST be unique; first one wins.
                     // But overwriting is allowed when a merge node is used in current block.
                     if ($allowOverwrite || !isset($data[$key])) {
-                        if (!$allowOverwrite && array_key_exists($key, $data)) {
+                        if (!$allowOverwrite && \array_key_exists($key, $data)) {
                             trigger_deprecation('symfony/yaml', '7.2', 'Duplicate key "%s" detected on line %d whilst parsing YAML. Silent handling of duplicate mapping keys in YAML is deprecated and will throw a ParseException in 8.0.', $key, $this->getRealCurrentLineNb() + 1);
                         }
 
@@ -874,7 +874,7 @@ class Parser
         if ($notEOF) {
             $blockLines[] = '';
             $this->moveToPreviousLine();
-        } elseif (!$notEOF && !$this->isCurrentLineLastLineInDocument()) {
+        } elseif (!$this->isCurrentLineLastLineInDocument()) {
             $blockLines[] = '';
         }
 
@@ -1165,7 +1165,7 @@ class Parser
     private function lexUnquotedString(int &$cursor): string
     {
         $offset = $cursor;
-        $cursor += strcspn($this->currentLine, '[]{},: ', $cursor);
+        $cursor += strcspn($this->currentLine, '[]{},:', $cursor);
 
         if ($cursor === $offset) {
             throw new ParseException('Malformed unquoted YAML string.');
@@ -1174,17 +1174,17 @@ class Parser
         return substr($this->currentLine, $offset, $cursor - $offset);
     }
 
-    private function lexInlineMapping(int &$cursor = 0): string
+    private function lexInlineMapping(int &$cursor = 0, bool $consumeUntilEol = true): string
     {
-        return $this->lexInlineStructure($cursor, '}');
+        return $this->lexInlineStructure($cursor, '}', $consumeUntilEol);
     }
 
-    private function lexInlineSequence(int &$cursor = 0): string
+    private function lexInlineSequence(int &$cursor = 0, bool $consumeUntilEol = true): string
     {
-        return $this->lexInlineStructure($cursor, ']');
+        return $this->lexInlineStructure($cursor, ']', $consumeUntilEol);
     }
 
-    private function lexInlineStructure(int &$cursor, string $closingTag): string
+    private function lexInlineStructure(int &$cursor, string $closingTag, bool $consumeUntilEol = true): string
     {
         $value = $this->currentLine[$cursor];
         ++$cursor;
@@ -1204,14 +1204,18 @@ class Parser
                         ++$cursor;
                         break;
                     case '{':
-                        $value .= $this->lexInlineMapping($cursor);
+                        $value .= $this->lexInlineMapping($cursor, false);
                         break;
                     case '[':
-                        $value .= $this->lexInlineSequence($cursor);
+                        $value .= $this->lexInlineSequence($cursor, false);
                         break;
                     case $closingTag:
                         $value .= $this->currentLine[$cursor];
                         ++$cursor;
+
+                        if ($consumeUntilEol && isset($this->currentLine[$cursor]) && ($whitespaces = strspn($this->currentLine, ' ', $cursor) + $cursor) < strlen($this->currentLine) && '#' !== $this->currentLine[$whitespaces]) {
+                            throw new ParseException(sprintf('Unexpected token "%s".', trim(substr($this->currentLine, $cursor))));
+                        }
 
                         return $value;
                     case '#':

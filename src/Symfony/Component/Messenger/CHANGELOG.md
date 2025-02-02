@@ -4,9 +4,13 @@ CHANGELOG
 7.2
 ---
 
+ * Add `$previous` to the exception output at the `messenger:failed:show` command
  * `WrappedExceptionsInterface` now extends PHP's `Throwable` interface
  * Add `#[AsMessage]` attribute with `$transport` parameter for message routing
  * Add `--format` option to the `messenger:stats` command
+ * Add `getRetryDelay()` method to `RecoverableExceptionInterface`
+ * Add `skip` option to `messenger:failed:retry` command when run interactively to skip message and requeue it
+ * Add the ability to asynchronously notify transports about which messages are still being processed by the worker, using `pcntl_alarm()`
 
 7.1
 ---

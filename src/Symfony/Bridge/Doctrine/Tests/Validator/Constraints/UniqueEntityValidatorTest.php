@@ -21,6 +21,7 @@ use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use PHPUnit\Framework\MockObject\MockObject;
 use Symfony\Bridge\Doctrine\Tests\DoctrineTestHelper;
+use Symfony\Bridge\Doctrine\Tests\Fixtures\AssociatedEntityDto;
 use Symfony\Bridge\Doctrine\Tests\Fixtures\AssociationEntity;
 use Symfony\Bridge\Doctrine\Tests\Fixtures\AssociationEntity2;
 use Symfony\Bridge\Doctrine\Tests\Fixtures\CompositeIntIdEntity;
@@ -83,10 +84,16 @@ class UniqueEntityValidatorTest extends ConstraintValidatorTestCase
     protected function createRegistryMock($em = null)
     {
         $registry = $this->createMock(ManagerRegistry::class);
-        $registry->expects($this->any())
-                 ->method('getManager')
-                 ->with($this->equalTo(self::EM_NAME))
-                 ->willReturn($em);
+
+        if (null === $em) {
+            $registry->method('getManager')
+                ->with($this->equalTo(self::EM_NAME))
+                ->willThrowException(new \InvalidArgumentException());
+        } else {
+            $registry->method('getManager')
+                ->with($this->equalTo(self::EM_NAME))
+                ->willReturn($em);
+        }
 
         return $registry;
     }
@@ -609,6 +616,40 @@ class UniqueEntityValidatorTest extends ConstraintValidatorTestCase
         $this->assertNoViolation();
     }
 
+    public function testAssociatedEntityReferencedByPrimaryKey()
+    {
+        $this->registry = $this->createRegistryMock($this->em);
+        $this->registry->expects($this->any())
+            ->method('getManagerForClass')
+            ->willReturn($this->em);
+        $this->validator = $this->createValidator();
+        $this->validator->initialize($this->context);
+
+        $entity = new SingleIntIdEntity(1, 'foo');
+        $associated = new AssociationEntity();
+        $associated->single = $entity;
+
+        $this->em->persist($entity);
+        $this->em->persist($associated);
+        $this->em->flush();
+
+        $dto = new AssociatedEntityDto();
+        $dto->singleId = 1;
+
+        $this->validator->validate($dto, new UniqueEntity(
+            fields: ['singleId' => 'single'],
+            entityClass: AssociationEntity::class,
+        ));
+
+        $this->buildViolation('This value is already used.')
+            ->atPath('property.path.single')
+            ->setParameter('{{ value }}', 1)
+            ->setInvalidValue(1)
+            ->setCode(UniqueEntity::NOT_UNIQUE_ERROR)
+            ->setCause([$associated])
+            ->assertRaised();
+    }
+
     public function testValidateUniquenessWithArrayValue()
     {
         $repository = $this->createRepositoryMock(SingleIntIdEntity::class);
@@ -926,7 +967,7 @@ class UniqueEntityValidatorTest extends ConstraintValidatorTestCase
         $entity = new SingleIntIdEntity(1, 'foo');
 
         return [
-            [$entity, new class() implements \Iterator {
+            [$entity, new class implements \Iterator {
                 public function current(): mixed
                 {
                     return null;
@@ -950,7 +991,7 @@ class UniqueEntityValidatorTest extends ConstraintValidatorTestCase
                 {
                 }
             }],
-            [$entity, new class() implements \Iterator {
+            [$entity, new class implements \Iterator {
                 public function current(): mixed
                 {
                     return false;

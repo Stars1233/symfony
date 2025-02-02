@@ -133,7 +133,7 @@ class AutowireNestedAttributes implements AsDecoratorInterface
             'decorated' => new AutowireDecorated(),
             'iterator' => new AutowireIterator('foo'),
             'locator' => new AutowireLocator('foo'),
-            'service' => new Autowire(service: 'bar')
+            'service' => new Autowire(service: 'bar'),
         ])] array $options)
     {
     }
@@ -195,6 +195,21 @@ class AutowireInlineAttributes3
             ],
         )]
         public AutowireInlineAttributes2 $inlined,
+    ) {
+    }
+}
+
+class NestedAutowireInlineAttribute
+{
+    public function __construct(
+        #[AutowireInline(
+            AutowireInlineAttributesBar::class,
+            arguments: [
+                new AutowireInline(Foo::class),
+                'testString',
+            ],
+        )]
+        public AutowireInlineAttributesBar $inlined,
     ) {
     }
 }

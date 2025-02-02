@@ -222,17 +222,12 @@ abstract class AbstractNormalizer implements NormalizerInterface, DenormalizerIn
             return false;
         }
 
-        $classMetadata = $this->classMetadataFactory->getMetadataFor($classOrObject);
-        $class = $classMetadata->getName();
-
         $groups = $this->getGroups($context);
-        $groupsHasBeenDefined = [] !== $groups;
-        $groups = array_merge($groups, ['Default', (false !== $nsSep = strrpos($class, '\\')) ? substr($class, $nsSep + 1) : $class]);
 
         $allowedAttributes = [];
         $ignoreUsed = false;
 
-        foreach ($classMetadata->getAttributesMetadata() as $attributeMetadata) {
+        foreach ($this->classMetadataFactory->getMetadataFor($classOrObject)->getAttributesMetadata() as $attributeMetadata) {
             if ($ignore = $attributeMetadata->isIgnored()) {
                 $ignoreUsed = true;
             }
@@ -240,14 +235,14 @@ abstract class AbstractNormalizer implements NormalizerInterface, DenormalizerIn
             // If you update this check, update accordingly the one in Symfony\Component\PropertyInfo\Extractor\SerializerExtractor::getProperties()
             if (
                 !$ignore
-                && (!$groupsHasBeenDefined || array_intersect(array_merge($attributeMetadata->getGroups(), ['*']), $groups))
+                && ([] === $groups || \in_array('*', $groups, true) || array_intersect($attributeMetadata->getGroups(), $groups))
                 && $this->isAllowedAttribute($classOrObject, $name = $attributeMetadata->getName(), null, $context)
             ) {
                 $allowedAttributes[] = $attributesAsString ? $name : $attributeMetadata;
             }
         }
 
-        if (!$ignoreUsed && !$groupsHasBeenDefined && $allowExtraAttributes) {
+        if (!$ignoreUsed && [] === $groups && $allowExtraAttributes) {
             // Backward Compatibility with the code using this method written before the introduction of @Ignore
             return false;
         }
@@ -351,7 +346,16 @@ abstract class AbstractNormalizer implements NormalizerInterface, DenormalizerIn
 
                         $variadicParameters = [];
                         foreach ($data[$key] as $parameterKey => $parameterData) {
-                            $variadicParameters[$parameterKey] = $this->denormalizeParameter($reflectionClass, $constructorParameter, $paramName, $parameterData, $attributeContext, $format);
+                            try {
+                                $variadicParameters[$parameterKey] = $this->denormalizeParameter($reflectionClass, $constructorParameter, $paramName, $parameterData, $attributeContext, $format);
+                            } catch (NotNormalizableValueException $exception) {
+                                if (!isset($context['not_normalizable_value_exceptions'])) {
+                                    throw $exception;
+                                }
+
+                                $context['not_normalizable_value_exceptions'][] = $exception;
+                                $params[$paramName] = $parameterData;
+                            }
                         }
 
                         $params = array_merge(array_values($params), $variadicParameters);

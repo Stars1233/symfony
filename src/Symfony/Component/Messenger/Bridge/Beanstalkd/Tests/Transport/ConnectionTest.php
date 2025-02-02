@@ -330,4 +330,58 @@ final class ConnectionTest extends TestCase
 
         $connection->send($body, $headers, $delay);
     }
+
+    public function testKeepalive()
+    {
+        $id = 123456;
+
+        $tube = 'baz';
+
+        $client = $this->createMock(PheanstalkInterface::class);
+        $client->expects($this->once())->method('useTube')->with($tube)->willReturn($client);
+        $client->expects($this->once())->method('touch')->with($this->callback(fn (JobId $jobId): bool => $jobId->getId() === $id));
+
+        $connection = new Connection(['tube_name' => $tube], $client);
+
+        $connection->keepalive((string) $id);
+    }
+
+    public function testKeepaliveWhenABeanstalkdExceptionOccurs()
+    {
+        $id = 123456;
+
+        $tube = 'baz123';
+
+        $exception = new ServerException('baz error');
+
+        $client = $this->createMock(PheanstalkInterface::class);
+        $client->expects($this->once())->method('useTube')->with($tube)->willReturn($client);
+        $client->expects($this->once())->method('touch')->with($this->callback(fn (JobId $jobId): bool => $jobId->getId() === $id))->willThrowException($exception);
+
+        $connection = new Connection(['tube_name' => $tube], $client);
+
+        $this->expectExceptionObject(new TransportException($exception->getMessage(), 0, $exception));
+        $connection->keepalive((string) $id);
+    }
+
+    public function testSendWithRoundedDelay()
+    {
+        $tube = 'xyz';
+        $body = 'foo';
+        $headers = ['test' => 'bar'];
+        $delay = 920;
+        $expectedDelay = 0;
+
+        $client = $this->createMock(PheanstalkInterface::class);
+        $client->expects($this->once())->method('useTube')->with($tube)->willReturn($client);
+        $client->expects($this->once())->method('put')->with(
+            $this->anything(),
+            $this->anything(),
+            $expectedDelay,
+            $this->anything(),
+        );
+
+        $connection = new Connection(['tube_name' => $tube], $client);
+        $connection->send($body, $headers, $delay);
+    }
 }

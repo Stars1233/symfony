@@ -182,6 +182,7 @@ abstract class AbstractFailedMessagesCommand extends Command
                 Caster::PREFIX_VIRTUAL.'file' => $flattenException->getFile(),
                 Caster::PREFIX_VIRTUAL.'line' => $flattenException->getLine(),
                 Caster::PREFIX_VIRTUAL.'trace' => new TraceStub($flattenException->getTrace()),
+                Caster::PREFIX_VIRTUAL.'previous' => $flattenException->getPrevious(),
             ];
         }]);
 
@@ -233,8 +234,6 @@ abstract class AbstractFailedMessagesCommand extends Command
                 $ids[] = $this->getMessageId($envelope);
             }
             $suggestions->suggestValues($ids);
-
-            return;
         }
     }
 }

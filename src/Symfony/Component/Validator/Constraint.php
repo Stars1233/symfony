@@ -129,7 +129,7 @@ abstract class Constraint
         $normalizedOptions = [];
         $defaultOption = $this->getDefaultOption();
         $invalidOptions = [];
-        $missingOptions = array_flip((array) $this->getRequiredOptions());
+        $missingOptions = array_flip($this->getRequiredOptions());
         $knownOptions = get_class_vars(static::class);
 
         if (\is_array($options) && isset($options['value']) && !property_exists($this, 'value')) {
@@ -278,10 +278,7 @@ abstract class Constraint
      * Returns whether the constraint can be put onto classes, properties or
      * both.
      *
-     * This method should return one or more of the constants
-     * Constraint::CLASS_CONSTRAINT and Constraint::PROPERTY_CONSTRAINT.
-     *
-     * @return string|string[] One or more constant values
+     * @return self::CLASS_CONSTRAINT|self::PROPERTY_CONSTRAINT|array<self::CLASS_CONSTRAINT|self::PROPERTY_CONSTRAINT>
      */
     public function getTargets(): string|array
     {

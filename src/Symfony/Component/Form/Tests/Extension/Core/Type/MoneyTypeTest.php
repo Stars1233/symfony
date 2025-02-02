@@ -11,11 +11,12 @@
 
 namespace Symfony\Component\Form\Tests\Extension\Core\Type;
 
+use Symfony\Component\Form\Extension\Core\Type\MoneyType;
 use Symfony\Component\Intl\Util\IntlTestHelper;
 
 class MoneyTypeTest extends BaseTypeTestCase
 {
-    public const TESTED_TYPE = 'Symfony\Component\Form\Extension\Core\Type\MoneyType';
+    public const TESTED_TYPE = MoneyType::class;
 
     private string $defaultLocale;
 
@@ -32,8 +33,6 @@ class MoneyTypeTest extends BaseTypeTestCase
 
     protected function tearDown(): void
     {
-        parent::tearDown();
-
         \Locale::setDefault($this->defaultLocale);
     }
 

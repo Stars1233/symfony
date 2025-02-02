@@ -129,7 +129,7 @@ final class SwiftRegistryIbanProvider
         array_shift($lines);
 
         foreach ($lines as $line) {
-            $columns = str_getcsv($line, "\t");
+            $columns = str_getcsv($line, "\t", '"', '\\');
             $propertyLabel = array_shift($columns);
 
             if (!isset($properties[$propertyLabel])) {
@@ -168,7 +168,7 @@ final class WikipediaIbanProvider
         $formats = [];
 
         foreach ($this->readIbanFormatsTable() as $item) {
-            if (!preg_match('/^([A-Z]{2})/', $item['Example'], $matches)) {
+            if (!preg_match('/^([A-Z]{2})/', $item['IBAN Fields'], $matches)) {
                 continue;
             }
 

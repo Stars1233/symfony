@@ -307,14 +307,14 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
 
             $configId = 'security.firewall.map.config.'.$name;
 
-            [$matcher, $listeners, $exceptionListener, $logoutListener, $firewallAuthenticators] = $this->createFirewall($container, $name, $firewall, $authenticationProviders, $providerIds, $configId);
+            [$matcher, $listeners, $exceptionListener, $logoutListener, $firewallAuthenticators] = $this->createFirewall($container, $name, $firewall, $providerIds, $configId);
 
             if (!$firewallAuthenticators) {
                 $authenticators[$name] = null;
             } else {
                 $firewallAuthenticatorRefs = [];
-                foreach ($firewallAuthenticators as $authenticatorId) {
-                    $firewallAuthenticatorRefs[$authenticatorId] = new Reference($authenticatorId);
+                foreach ($firewallAuthenticators as $originalAuthenticatorId => $managerAuthenticatorId) {
+                    $firewallAuthenticatorRefs[$originalAuthenticatorId] = new Reference($originalAuthenticatorId);
                 }
                 $authenticators[$name] = ServiceLocatorTagPass::register($container, $firewallAuthenticatorRefs);
             }
@@ -348,7 +348,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         }
     }
 
-    private function createFirewall(ContainerBuilder $container, string $id, array $firewall, array &$authenticationProviders, array $providerIds, string $configId): array
+    private function createFirewall(ContainerBuilder $container, string $id, array $firewall, array $providerIds, string $configId): array
     {
         $config = $container->setDefinition($configId, new ChildDefinition('security.firewall.config'));
         $config->replaceArgument(0, $id);
@@ -501,7 +501,7 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         $configuredEntryPoint = $defaultEntryPoint;
 
         // authenticator manager
-        $authenticators = array_map(fn ($id) => new Reference($id), $firewallAuthenticationProviders);
+        $authenticators = array_map(fn ($id) => new Reference($id), $firewallAuthenticationProviders, []);
         $container
             ->setDefinition($managerId = 'security.authenticator.manager.'.$id, new ChildDefinition('security.authenticator.manager'))
             ->replaceArgument(0, $authenticators)
@@ -564,6 +564,9 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
 
         $container->setAlias('security.user_checker.'.$id, new Alias($firewall['user_checker'], false));
 
+        $userCheckerLocator = $container->getDefinition('security.user_checker_locator');
+        $userCheckerLocator->replaceArgument(0, array_merge($userCheckerLocator->getArgument(0), [$id => new ServiceClosureArgument(new Reference('security.user_checker.'.$id))]));
+
         foreach ($this->getSortedFactories() as $factory) {
             $key = str_replace('-', '_', $factory->getKey());
             if ('custom_authenticators' !== $key && \array_key_exists($key, $firewall)) {
@@ -622,11 +625,11 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
                 $authenticators = $factory->createAuthenticator($container, $id, $firewall[$key], $userProvider);
                 if (\is_array($authenticators)) {
                     foreach ($authenticators as $authenticator) {
-                        $authenticationProviders[] = $authenticator;
+                        $authenticationProviders[$authenticator] = $authenticator;
                         $entryPoints[] = $authenticator;
                     }
                 } else {
-                    $authenticationProviders[] = $authenticators;
+                    $authenticationProviders[$authenticators] = $authenticators;
                     $entryPoints[$key] = $authenticators;
                 }
 
@@ -640,11 +643,13 @@ class SecurityExtension extends Extension implements PrependExtensionInterface
         }
 
         if ($container->hasDefinition('debug.security.firewall')) {
-            foreach ($authenticationProviders as $authenticatorId) {
-                $container->register('debug.'.$authenticatorId, TraceableAuthenticator::class)
-                    ->setDecoratedService($authenticatorId)
-                    ->setArguments([new Reference('debug.'.$authenticatorId.'.inner')])
+            foreach ($authenticationProviders as &$authenticatorId) {
+                $traceableId = 'debug.'.$authenticatorId;
+                $container
+                    ->register($traceableId, TraceableAuthenticator::class)
+                    ->setArguments([new Reference($authenticatorId)])
                 ;
+                $authenticatorId = $traceableId;
             }
         }
 

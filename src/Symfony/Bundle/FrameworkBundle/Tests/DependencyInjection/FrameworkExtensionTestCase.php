@@ -33,6 +33,7 @@ use Symfony\Component\DependencyInjection\Argument\ServiceClosureArgument;
 use Symfony\Component\DependencyInjection\Argument\ServiceLocatorArgument;
 use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ChildDefinition;
+use Symfony\Component\DependencyInjection\Compiler\ResolveChildDefinitionsPass;
 use Symfony\Component\DependencyInjection\Compiler\ResolveInstanceofConditionalsPass;
 use Symfony\Component\DependencyInjection\Compiler\ResolveTaggedIteratorArgumentPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -56,6 +57,7 @@ use Symfony\Component\HttpClient\ThrottlingHttpClient;
 use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\HttpKernel\DependencyInjection\LoggerPass;
 use Symfony\Component\HttpKernel\Fragment\FragmentUriGeneratorInterface;
+use Symfony\Component\Lock\Store\SemaphoreStore;
 use Symfony\Component\Messenger\Bridge\AmazonSqs\Transport\AmazonSqsTransportFactory;
 use Symfony\Component\Messenger\Bridge\Amqp\Transport\AmqpTransportFactory;
 use Symfony\Component\Messenger\Bridge\Beanstalkd\Transport\BeanstalkdTransportFactory;
@@ -673,8 +675,6 @@ abstract class FrameworkExtensionTestCase extends TestCase
         $this->assertEquals(108, $options['gc_divisor']);
         $this->assertEquals(1, $options['gc_probability']);
         $this->assertEquals(90000, $options['gc_maxlifetime']);
-        $this->assertEquals(22, $options['sid_length']);
-        $this->assertEquals(4, $options['sid_bits_per_character']);
 
         $this->assertEquals('/path/to/sessions', $container->getParameter('session.save_path'));
     }
@@ -686,7 +686,7 @@ abstract class FrameworkExtensionTestCase extends TestCase
         $this->assertNull($container->getParameter('session.save_path'));
         $this->assertSame('session.handler.native', (string) $container->getAlias('session.handler'));
 
-        $expected = ['session_factory', 'logger', 'session_collector'];
+        $expected = ['session_factory', 'logger', 'session_collector', 'request_stack'];
         $this->assertEquals($expected, array_keys($container->getDefinition('session_listener')->getArgument(0)->getValues()));
         $this->assertFalse($container->getDefinition('session.storage.factory.native')->getArgument(3));
     }
@@ -1458,6 +1458,26 @@ abstract class FrameworkExtensionTestCase extends TestCase
         $this->assertFalse($container->hasDefinition('serializer.normalizer.translatable'));
     }
 
+    public function testSerializerDefaultParameters()
+    {
+        $container = $this->createContainerFromFile('serializer_enabled');
+        $this->assertFalse($container->hasParameter('.serializer.name_converter'));
+        $this->assertFalse($container->hasParameter('serializer.default_context'));
+        $this->assertTrue($container->hasParameter('.serializer.named_serializers'));
+        $this->assertSame([], $container->getParameter('.serializer.named_serializers'));
+    }
+
+    public function testSerializerParametersAreSet()
+    {
+        $container = $this->createContainerFromFile('full');
+        $this->assertTrue($container->hasParameter('.serializer.name_converter'));
+        $this->assertSame('serializer.name_converter.camel_case_to_snake_case', $container->getParameter('.serializer.name_converter'));
+        $this->assertTrue($container->hasParameter('serializer.default_context'));
+        $this->assertSame(['enable_max_depth' => true], $container->getParameter('serializer.default_context'));
+        $this->assertTrue($container->hasParameter('.serializer.named_serializers'));
+        $this->assertSame(['api' => ['include_built_in_normalizers' => true, 'include_built_in_encoders' => true, 'default_context' => ['enable_max_depth' => false]]], $container->getParameter('.serializer.named_serializers'));
+    }
+
     public function testRegisterSerializerExtractor()
     {
         $container = $this->createContainerFromFile('full');
@@ -1893,7 +1913,7 @@ abstract class FrameworkExtensionTestCase extends TestCase
     {
         $container = $this->createContainerFromFile('session_cookie_secure_auto');
 
-        $expected = ['session_factory', 'logger', 'session_collector'];
+        $expected = ['session_factory', 'logger', 'session_collector', 'request_stack'];
         $this->assertEquals($expected, array_keys($container->getDefinition('session_listener')->getArgument(0)->getValues()));
     }
 
@@ -1930,8 +1950,12 @@ abstract class FrameworkExtensionTestCase extends TestCase
         ];
         $this->assertSame([$defaultOptions, 4], $container->getDefinition('http_client.transport')->getArguments());
 
+        $this->assertTrue($container->getDefinition('http_client')->hasTag('kernel.reset'));
+
         $this->assertTrue($container->hasDefinition('foo'), 'should have the "foo" service.');
-        $this->assertSame(ScopingHttpClient::class, $container->getDefinition('foo')->getClass());
+        $definition = $container->getDefinition('foo');
+        $this->assertSame(ScopingHttpClient::class, $definition->getClass());
+        $this->assertTrue($definition->hasTag('kernel.reset'));
     }
 
     public function testScopedHttpClientWithoutQueryOption()
@@ -2341,7 +2365,7 @@ abstract class FrameworkExtensionTestCase extends TestCase
     {
         $container = $this->createContainerFromFile('trusted_proxies_private_ranges');
 
-        $this->assertSame(IpUtils::PRIVATE_SUBNETS, array_map('trim', explode(',', $container->getParameter('kernel.trusted_proxies'))));
+        $this->assertSame(IpUtils::PRIVATE_SUBNETS, $container->getParameter('kernel.trusted_proxies'));
     }
 
     public function testWebhook()
@@ -2357,7 +2381,7 @@ abstract class FrameworkExtensionTestCase extends TestCase
         $this->assertSame(RequestParser::class, $container->getDefinition('webhook.request_parser')->getClass());
 
         $this->assertFalse($container->getDefinition('webhook.transport')->hasErrors());
-        $this->assertFalse($container->getDefinition('webhook.body_configurator.json')->hasErrors());
+        $this->assertEquals('webhook.payload_serializer.serializer', $container->getDefinition('webhook.body_configurator.json')->getArgument(0));
     }
 
     public function testWebhookWithoutSerializer()
@@ -2369,11 +2393,7 @@ abstract class FrameworkExtensionTestCase extends TestCase
         $container = $this->createContainerFromFile('webhook_without_serializer');
 
         $this->assertFalse($container->getDefinition('webhook.transport')->hasErrors());
-        $this->assertTrue($container->getDefinition('webhook.body_configurator.json')->hasErrors());
-        $this->assertSame(
-            ['You cannot use the "webhook transport" service since the Serializer component is not enabled. Try setting "framework.serializer.enabled" to true.'],
-            $container->getDefinition('webhook.body_configurator.json')->getErrors()
-        );
+        $this->assertEquals('webhook.payload_serializer.json', $container->getDefinition('webhook.body_configurator.json')->getArgument(0));
     }
 
     public function testAssetMapperWithoutAssets()
@@ -2384,6 +2404,101 @@ abstract class FrameworkExtensionTestCase extends TestCase
         $this->assertFalse($container->has('asset_mapper.asset_package'));
         $this->assertFalse($container->has('assets.packages'));
         $this->assertFalse($container->has('assets._default_package'));
+    }
+
+    public function testDefaultLock()
+    {
+        $container = $this->createContainerFromFile('lock');
+
+        self::assertTrue($container->hasDefinition('lock.default.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('lock.default.factory')->getArgument(0));
+
+        if (class_exists(SemaphoreStore::class) && SemaphoreStore::isSupported()) {
+            self::assertSame('semaphore', $storeDef->getArgument(0));
+        } else {
+            self::assertSame('flock', $storeDef->getArgument(0));
+        }
+    }
+
+    public function testNamedLocks()
+    {
+        $container = $this->createContainerFromFile('lock_named');
+
+        self::assertTrue($container->hasDefinition('lock.foo.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('lock.foo.factory')->getArgument(0));
+        self::assertSame('semaphore', $storeDef->getArgument(0));
+
+        self::assertTrue($container->hasDefinition('lock.bar.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('lock.bar.factory')->getArgument(0));
+        self::assertSame('flock', $storeDef->getArgument(0));
+
+        self::assertTrue($container->hasDefinition('lock.baz.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('lock.baz.factory')->getArgument(0));
+        self::assertIsArray($storeDefArg = $storeDef->getArgument(0));
+        $storeDef1 = $container->getDefinition($storeDefArg[0]);
+        $storeDef2 = $container->getDefinition($storeDefArg[1]);
+        self::assertSame('semaphore', $storeDef1->getArgument(0));
+        self::assertSame('flock', $storeDef2->getArgument(0));
+
+        self::assertTrue($container->hasDefinition('lock.qux.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('lock.qux.factory')->getArgument(0));
+        self::assertStringContainsString('REDIS_DSN', $storeDef->getArgument(0));
+
+        self::assertTrue($container->hasDefinition('lock.corge.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('lock.corge.factory')->getArgument(0));
+        self::assertSame('in-memory', $storeDef->getArgument(0));
+
+        self::assertTrue($container->hasDefinition('lock.grault.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('lock.grault.factory')->getArgument(0));
+        self::assertSame('mysql:host=localhost;dbname=test', $storeDef->getArgument(0));
+
+        self::assertTrue($container->hasDefinition('lock.garply.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('lock.garply.factory')->getArgument(0));
+        self::assertSame('null', $storeDef->getArgument(0));
+    }
+
+    public function testLockWithService()
+    {
+        $container = $this->createContainerFromFile('lock_service', [], true, false);
+        $container->getCompilerPassConfig()->setOptimizationPasses([new ResolveChildDefinitionsPass()]);
+        $container->compile();
+
+        self::assertTrue($container->hasDefinition('lock.default.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('lock.default.factory')->getArgument(0));
+        self::assertEquals(new Reference('my_service'), $storeDef->getArgument(0));
+    }
+
+    public function testDefaultSemaphore()
+    {
+        $container = $this->createContainerFromFile('semaphore');
+
+        self::assertTrue($container->hasDefinition('semaphore.default.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('semaphore.default.factory')->getArgument(0));
+        self::assertSame('redis://localhost', $storeDef->getArgument(0));
+    }
+
+    public function testNamedSemaphores()
+    {
+        $container = $this->createContainerFromFile('semaphore_named');
+
+        self::assertTrue($container->hasDefinition('semaphore.foo.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('semaphore.foo.factory')->getArgument(0));
+        self::assertSame('redis://paas.com', $storeDef->getArgument(0));
+
+        self::assertTrue($container->hasDefinition('semaphore.qux.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('semaphore.qux.factory')->getArgument(0));
+        self::assertStringContainsString('REDIS_DSN', $storeDef->getArgument(0));
+    }
+
+    public function testSemaphoreWithService()
+    {
+        $container = $this->createContainerFromFile('semaphore_service', [], true, false);
+        $container->getCompilerPassConfig()->setOptimizationPasses([new ResolveChildDefinitionsPass()]);
+        $container->compile();
+
+        self::assertTrue($container->hasDefinition('semaphore.default.factory'));
+        $storeDef = $container->getDefinition($container->getDefinition('semaphore.default.factory')->getArgument(0));
+        self::assertEquals(new Reference('my_service'), $storeDef->getArgument(0));
     }
 
     protected function createContainer(array $data = [])

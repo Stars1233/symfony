@@ -1,6 +1,15 @@
 CHANGELOG
 =========
 
+7.2
+---
+
+ * Deprecate the `VersionAwareTest` trait, use feature detection instead
+ * Add support for the `calendar` option in `DateType`
+ * Add `LazyChoiceLoader` and `choice_lazy` option in `ChoiceType` for loading and rendering choices on demand
+ * Use `form.post_set_data` instead of `form.pre_set_data` in `ResizeFormListener`
+ * Change the priority of `DataCollectorListener` from 255 to -255
+
 7.1
 ---
 

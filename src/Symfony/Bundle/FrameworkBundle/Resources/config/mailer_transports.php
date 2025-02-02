@@ -22,10 +22,13 @@ use Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory;
 use Symfony\Component\Mailer\Bridge\Mailjet\Transport\MailjetTransportFactory;
 use Symfony\Component\Mailer\Bridge\Mailomat\Transport\MailomatTransportFactory;
 use Symfony\Component\Mailer\Bridge\MailPace\Transport\MailPaceTransportFactory;
+use Symfony\Component\Mailer\Bridge\Mailtrap\Transport\MailtrapTransportFactory;
+use Symfony\Component\Mailer\Bridge\Postal\Transport\PostalTransportFactory;
 use Symfony\Component\Mailer\Bridge\Postmark\Transport\PostmarkTransportFactory;
 use Symfony\Component\Mailer\Bridge\Resend\Transport\ResendTransportFactory;
 use Symfony\Component\Mailer\Bridge\Scaleway\Transport\ScalewayTransportFactory;
 use Symfony\Component\Mailer\Bridge\Sendgrid\Transport\SendgridTransportFactory;
+use Symfony\Component\Mailer\Bridge\Sweego\Transport\SweegoTransportFactory;
 use Symfony\Component\Mailer\Transport\AbstractTransportFactory;
 use Symfony\Component\Mailer\Transport\NativeTransportFactory;
 use Symfony\Component\Mailer\Transport\NullTransportFactory;
@@ -57,12 +60,15 @@ return static function (ContainerConfigurator $container) {
         'mailpace' => MailPaceTransportFactory::class,
         'native' => NativeTransportFactory::class,
         'null' => NullTransportFactory::class,
+        'postal' => PostalTransportFactory::class,
         'postmark' => PostmarkTransportFactory::class,
+        'mailtrap' => MailtrapTransportFactory::class,
         'resend' => ResendTransportFactory::class,
         'scaleway' => ScalewayTransportFactory::class,
         'sendgrid' => SendgridTransportFactory::class,
         'sendmail' => SendmailTransportFactory::class,
         'smtp' => EsmtpTransportFactory::class,
+        'sweego' => SweegoTransportFactory::class,
     ];
 
     foreach ($factories as $name => $class) {

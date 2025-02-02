@@ -20,6 +20,7 @@ use Symfony\Component\PropertyAccess\Exception\UninitializedPropertyException;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\PropertyAccess\PropertyAccessorInterface;
+use Symfony\Component\PropertyAccess\Tests\Fixtures\AsymmetricVisibility;
 use Symfony\Component\PropertyAccess\Tests\Fixtures\ExtendedUninitializedProperty;
 use Symfony\Component\PropertyAccess\Tests\Fixtures\ReturnTyped;
 use Symfony\Component\PropertyAccess\Tests\Fixtures\TestAdderRemoverInvalidArgumentLength;
@@ -147,7 +148,7 @@ class PropertyAccessorTest extends TestCase
 
     public function testGetValueThrowsExceptionIfUninitializedPropertyWithGetterOfAnonymousClass()
     {
-        $object = new class() {
+        $object = new class {
             private $uninitialized;
 
             public function getUninitialized(): array
@@ -164,7 +165,7 @@ class PropertyAccessorTest extends TestCase
 
     public function testGetValueThrowsExceptionIfUninitializedNotNullablePropertyWithGetterOfAnonymousClass()
     {
-        $object = new class() {
+        $object = new class {
             private string $uninitialized;
 
             public function getUninitialized(): string
@@ -181,7 +182,7 @@ class PropertyAccessorTest extends TestCase
 
     public function testGetValueThrowsExceptionIfUninitializedPropertyOfAnonymousClass()
     {
-        $object = new class() {
+        $object = new class {
             public string $uninitialized;
         };
 
@@ -209,7 +210,7 @@ class PropertyAccessorTest extends TestCase
 
     public function testGetValueThrowsExceptionIfUninitializedPropertyWithGetterOfAnonymousStdClass()
     {
-        $object = new class() extends \stdClass {
+        $object = new class extends \stdClass {
             private $uninitialized;
 
             public function getUninitialized(): array
@@ -226,7 +227,7 @@ class PropertyAccessorTest extends TestCase
 
     public function testGetValueThrowsExceptionIfUninitializedPropertyWithGetterOfAnonymousChildClass()
     {
-        $object = new class() extends UninitializedPrivateProperty {
+        $object = new class extends UninitializedPrivateProperty {
         };
 
         $this->expectException(UninitializedPropertyException::class);
@@ -532,6 +533,7 @@ class PropertyAccessorTest extends TestCase
             [['firstName' => 'Bernhard'], '[firstName]', 'Bernhard'],
             [['index' => ['firstName' => 'Bernhard']], '[index][firstName]', 'Bernhard'],
             [(object) ['firstName' => 'Bernhard'], 'firstName', 'Bernhard'],
+            [(object) ['first.Name' => 'Bernhard'], 'first.Name', 'Bernhard'],
             [(object) ['property' => ['firstName' => 'Bernhard']], 'property[firstName]', 'Bernhard'],
             [['index' => (object) ['firstName' => 'Bernhard']], '[index].firstName', 'Bernhard'],
             [(object) ['property' => (object) ['firstName' => 'Bernhard']], 'property.firstName', 'Bernhard'],
@@ -1044,5 +1046,63 @@ class PropertyAccessorTest extends TestCase
 
         return $class::createLazyGhost(initializer: function ($instance) {
         });
+    }
+
+    /**
+     * @requires PHP 8.4
+     */
+    public function testIsWritableWithAsymmetricVisibility()
+    {
+        $object = new AsymmetricVisibility();
+
+        $this->assertTrue($this->propertyAccessor->isWritable($object, 'publicPublic'));
+        $this->assertFalse($this->propertyAccessor->isWritable($object, 'publicProtected'));
+        $this->assertFalse($this->propertyAccessor->isWritable($object, 'publicPrivate'));
+        $this->assertFalse($this->propertyAccessor->isWritable($object, 'privatePrivate'));
+        $this->assertFalse($this->propertyAccessor->isWritable($object, 'virtualNoSetHook'));
+    }
+
+    /**
+     * @requires PHP 8.4
+     */
+    public function testIsReadableWithAsymmetricVisibility()
+    {
+        $object = new AsymmetricVisibility();
+
+        $this->assertTrue($this->propertyAccessor->isReadable($object, 'publicPublic'));
+        $this->assertTrue($this->propertyAccessor->isReadable($object, 'publicProtected'));
+        $this->assertTrue($this->propertyAccessor->isReadable($object, 'publicPrivate'));
+        $this->assertFalse($this->propertyAccessor->isReadable($object, 'privatePrivate'));
+        $this->assertTrue($this->propertyAccessor->isReadable($object, 'virtualNoSetHook'));
+    }
+
+    /**
+     * @requires PHP 8.4
+     *
+     * @dataProvider setValueWithAsymmetricVisibilityDataProvider
+     */
+    public function testSetValueWithAsymmetricVisibility(string $propertyPath, ?string $expectedException)
+    {
+        $object = new AsymmetricVisibility();
+
+        if ($expectedException) {
+            $this->expectException($expectedException);
+        } else {
+            $this->expectNotToPerformAssertions();
+        }
+
+        $this->propertyAccessor->setValue($object, $propertyPath, true);
+    }
+
+    /**
+     * @return iterable<array{0: string, 1: null|class-string}>
+     */
+    public static function setValueWithAsymmetricVisibilityDataProvider(): iterable
+    {
+        yield ['publicPublic', null];
+        yield ['publicProtected', \Error::class];
+        yield ['publicPrivate', \Error::class];
+        yield ['privatePrivate', NoSuchPropertyException::class];
+        yield ['virtualNoSetHook', \Error::class];
     }
 }

@@ -1085,6 +1085,36 @@ abstract class AbstractAsciiTestCase extends TestCase
             ['symfonyisgreat', 'SYMFONY    IS     GREAT'],
             ['symfonyisgreat', 'SYMFONY _ IS _ GREAT'],
             ['symfony_isgreat', 'Symfony IS GREAT!'],
+            ['123_customer_with_special_name', '123-customer,with/special#name'],
+        ];
+    }
+
+    /**
+     * @dataProvider provideKebab
+     */
+    public function testKebab(string $expectedString, string $origin)
+    {
+        $instance = static::createFromString($origin)->kebab();
+
+        $this->assertEquals(static::createFromString($expectedString), $instance);
+        $this->assertNotSame($origin, $instance, 'Strings should be immutable');
+    }
+
+    public static function provideKebab(): array
+    {
+        return [
+            ['', ''],
+            ['x-y', 'x_y'],
+            ['x-y', 'X_Y'],
+            ['xu-yo', 'xu_yo'],
+            ['symfony-is-great', 'symfonyIsGreat'],
+            ['symfony123-is-great', 'symfony123IsGreat'],
+            ['symfony123is-great', 'symfony123isGreat'],
+            ['symfony-is-great', 'Symfony is great'],
+            ['symfony-is-a-great-framework', 'symfonyIsAGreatFramework'],
+            ['symfony-is-great', 'symfonyIsGREAT'],
+            ['symfony-is-really-great', 'symfonyIsREALLYGreat'],
+            ['symfony', 'SYMFONY'],
         ];
     }
 
@@ -1534,14 +1564,42 @@ abstract class AbstractAsciiTestCase extends TestCase
             ['foobar...', 'foobar foo', 7, '...', false],
             ['foobar foo...', 'foobar foo a', 10, '...', false],
             ['foobar foo aar', 'foobar foo aar', 12, '...', false],
+            ['foobar', 'foobar foo', 6, '', TruncateMode::Char],
+            ['foobar', 'foobar foo', 6, '', TruncateMode::WordAfter],
+            ['foobar', 'foobar foo', 6, '', TruncateMode::WordBefore],
+            ['foo...', 'foobar foo', 6, '...', TruncateMode::Char],
             ['foobar...', 'foobar foo', 6, '...', TruncateMode::WordAfter],
+            ['foobar...', 'foobar foo', 6, '...', TruncateMode::WordBefore],
+            ['foobar ', 'foobar foo', 7, '', TruncateMode::Char],
+            ['foobar', 'foobar foo', 7, '', TruncateMode::WordAfter],
+            ['foobar', 'foobar foo', 7, '', TruncateMode::WordBefore],
+            ['foob...', 'foobar foo', 7, '...', TruncateMode::Char],
             ['foobar...', 'foobar foo', 7, '...', TruncateMode::WordAfter],
+            ['foobar...', 'foobar foo', 7, '...', TruncateMode::WordBefore],
+            ['foobar foo', 'foobar foo a', 10, '', TruncateMode::Char],
+            ['foobar foo', 'foobar foo a', 10, '', TruncateMode::WordAfter],
+            ['foobar foo', 'foobar foo a', 10, '', TruncateMode::WordBefore],
+            ['foobar...', 'foobar foo a', 10, '...', TruncateMode::Char],
             ['foobar foo...', 'foobar foo a', 10, '...', TruncateMode::WordAfter],
+            ['foobar...', 'foobar foo a', 10, '...', TruncateMode::WordBefore],
+            ['foobar foo a', 'foobar foo aar', 12, '', TruncateMode::Char],
+            ['foobar foo aar', 'foobar foo aar', 12, '', TruncateMode::WordAfter],
+            ['foobar foo', 'foobar foo aar', 12, '', TruncateMode::WordBefore],
+            ['foobar fo...', 'foobar foo aar', 12, '...', TruncateMode::Char],
             ['foobar foo aar', 'foobar foo aar', 12, '...', TruncateMode::WordAfter],
+            ['foobar...', 'foobar foo aar', 12, '...', TruncateMode::WordBefore],
+            ['foobar foo', 'foobar foo aar', 10, '', TruncateMode::Char],
             ['foobar foo', 'foobar foo aar', 10, '', TruncateMode::WordBefore],
+            ['foobar foo', 'foobar foo aar', 10, '', TruncateMode::WordAfter],
+            ['foobar...', 'foobar foo aar', 10, '...', TruncateMode::Char],
             ['foobar...', 'foobar foo aar', 10, '...', TruncateMode::WordBefore],
+            ['foobar foo...', 'foobar foo aar', 10, '...', TruncateMode::WordAfter],
+            ['Lorem ipsum do', 'Lorem ipsum dolor sit amet', 14, '', TruncateMode::Char],
             ['Lorem ipsum', 'Lorem ipsum dolor sit amet', 14, '', TruncateMode::WordBefore],
+            ['Lorem ipsum dolor', 'Lorem ipsum dolor sit amet', 14, '', TruncateMode::WordAfter],
+            ['Lorem i...', 'Lorem ipsum dolor sit amet', 10, '...', TruncateMode::Char],
             ['Lorem...', 'Lorem ipsum dolor sit amet', 10, '...', TruncateMode::WordBefore],
+            ['Lorem ipsum...', 'Lorem ipsum dolor sit amet', 10, '...', TruncateMode::WordAfter],
         ];
     }
 

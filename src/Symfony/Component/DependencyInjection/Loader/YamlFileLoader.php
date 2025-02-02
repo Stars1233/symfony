@@ -448,15 +448,16 @@ class YamlFileLoader extends FileLoader
                         throw new InvalidArgumentException(\sprintf('Missing attribute "version" of the "deprecated" option in "%s".', $file));
                     }
 
-                    $alias->setDeprecated($deprecation['package'] ?? '', $deprecation['version'] ?? '', $deprecation['message'] ?? '');
+                    $alias->setDeprecated($deprecation['package'], $deprecation['version'], $deprecation['message'] ?? '');
                 }
             }
 
             return $return ? $alias : $this->container->setAlias($id, $alias);
         }
 
+        $changes = [];
         if (null !== $definition) {
-            // no-op
+            $changes = $definition->getChanges();
         } elseif ($this->isLoadingInstanceof) {
             $definition = new ChildDefinition('');
         } elseif (isset($service['parent'])) {
@@ -479,7 +480,7 @@ class YamlFileLoader extends FileLoader
             $definition->setAutoconfigured($defaults['autoconfigure']);
         }
 
-        $definition->setChanges([]);
+        $definition->setChanges($changes);
 
         if (isset($service['class'])) {
             $definition->setClass($service['class']);
@@ -519,7 +520,7 @@ class YamlFileLoader extends FileLoader
                 throw new InvalidArgumentException(\sprintf('Missing attribute "version" of the "deprecated" option in "%s".', $file));
             }
 
-            $definition->setDeprecated($deprecation['package'] ?? '', $deprecation['version'] ?? '', $deprecation['message'] ?? '');
+            $definition->setDeprecated($deprecation['package'], $deprecation['version'], $deprecation['message'] ?? '');
         }
 
         if (isset($service['factory'])) {
@@ -561,7 +562,7 @@ class YamlFileLoader extends FileLoader
                 }
 
                 if (\is_string($k)) {
-                    throw new InvalidArgumentException(\sprintf('Invalid method call for service "%s", did you forgot a leading dash before "%s: ..." in "%s"?', $id, $k, $file));
+                    throw new InvalidArgumentException(\sprintf('Invalid method call for service "%s", did you forget a leading dash before "%s: ..." in "%s"?', $id, $k, $file));
                 }
 
                 if (isset($call['method']) && \is_string($call['method'])) {
@@ -852,6 +853,10 @@ class YamlFileLoader extends FileLoader
                 return new ServiceLocatorArgument($argument);
             }
             if (\in_array($value->getTag(), ['tagged', 'tagged_iterator', 'tagged_locator'], true)) {
+                if ('tagged' === $value->getTag()) {
+                    trigger_deprecation('symfony/dependency-injection', '7.2', 'Using "!tagged" is deprecated, use "!tagged_iterator" instead in "%s".', $file);
+                }
+
                 $forLocator = 'tagged_locator' === $value->getTag();
 
                 if (\is_array($argument) && isset($argument['tag']) && $argument['tag']) {

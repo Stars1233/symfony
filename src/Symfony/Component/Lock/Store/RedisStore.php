@@ -11,13 +11,12 @@
 
 namespace Symfony\Component\Lock\Store;
 
-use Predis\Response\ServerException;
+use Predis\Response\Error;
 use Relay\Relay;
 use Symfony\Component\Lock\Exception\InvalidTtlException;
 use Symfony\Component\Lock\Exception\LockConflictedException;
 use Symfony\Component\Lock\Exception\LockStorageException;
 use Symfony\Component\Lock\Key;
-use Symfony\Component\Lock\PersistingStoreInterface;
 use Symfony\Component\Lock\SharedLockStoreInterface;
 
 /**
@@ -29,6 +28,8 @@ use Symfony\Component\Lock\SharedLockStoreInterface;
 class RedisStore implements SharedLockStoreInterface
 {
     use ExpiringStoreTrait;
+
+    private const NO_SCRIPT_ERROR_MESSAGE_PREFIX = 'NOSCRIPT';
 
     private bool $supportTime;
 
@@ -227,9 +228,30 @@ class RedisStore implements SharedLockStoreInterface
 
     private function evaluate(string $script, string $resource, array $args): mixed
     {
+        $scriptSha = sha1($script);
+
         if ($this->redis instanceof \Redis || $this->redis instanceof Relay || $this->redis instanceof \RedisCluster) {
             $this->redis->clearLastError();
-            $result = $this->redis->eval($script, array_merge([$resource], $args), 1);
+
+            $result = $this->redis->evalSha($scriptSha, array_merge([$resource], $args), 1);
+            if (null !== ($err = $this->redis->getLastError()) && str_starts_with($err, self::NO_SCRIPT_ERROR_MESSAGE_PREFIX)) {
+                $this->redis->clearLastError();
+
+                if ($this->redis instanceof \RedisCluster) {
+                    foreach ($this->redis->_masters() as $master) {
+                        $this->redis->script($master, 'LOAD', $script);
+                    }
+                } else {
+                    $this->redis->script('LOAD', $script);
+                }
+
+                if (null !== $err = $this->redis->getLastError()) {
+                    throw new LockStorageException($err);
+                }
+
+                $result = $this->redis->evalSha($scriptSha, array_merge([$resource], $args), 1);
+            }
+
             if (null !== $err = $this->redis->getLastError()) {
                 throw new LockStorageException($err);
             }
@@ -240,7 +262,19 @@ class RedisStore implements SharedLockStoreInterface
         if ($this->redis instanceof \RedisArray) {
             $client = $this->redis->_instance($this->redis->_target($resource));
             $client->clearLastError();
-            $result = $client->eval($script, array_merge([$resource], $args), 1);
+            $result = $client->evalSha($scriptSha, array_merge([$resource], $args), 1);
+            if (null !== ($err = $this->redis->getLastError()) && str_starts_with($err, self::NO_SCRIPT_ERROR_MESSAGE_PREFIX)) {
+                $client->clearLastError();
+
+                $client->script('LOAD', $script);
+
+                if (null !== $err = $client->getLastError()) {
+                    throw new LockStorageException($err);
+                }
+
+                $result = $client->evalSha($scriptSha, array_merge([$resource], $args), 1);
+            }
+
             if (null !== $err = $client->getLastError()) {
                 throw new LockStorageException($err);
             }
@@ -250,11 +284,21 @@ class RedisStore implements SharedLockStoreInterface
 
         \assert($this->redis instanceof \Predis\ClientInterface);
 
-        try {
-            return $this->redis->eval(...array_merge([$script, 1, $resource], $args));
-        } catch (ServerException $e) {
-            throw new LockStorageException($e->getMessage(), $e->getCode(), $e);
+        $result = $this->redis->evalSha($scriptSha, 1, $resource, ...$args);
+        if ($result instanceof Error && str_starts_with($result->getMessage(), self::NO_SCRIPT_ERROR_MESSAGE_PREFIX)) {
+            $result = $this->redis->script('LOAD', $script);
+            if ($result instanceof Error) {
+                throw new LockStorageException($result->getMessage());
+            }
+
+            $result = $this->redis->evalSha($scriptSha, 1, $resource, ...$args);
         }
+
+        if ($result instanceof Error) {
+            throw new LockStorageException($result->getMessage());
+        }
+
+        return $result;
     }
 
     private function getUniqueToken(Key $key): string

@@ -11,6 +11,13 @@
 
 namespace Symfony\Component\Cache\Traits;
 
+use Symfony\Component\Cache\Traits\Relay\CopyTrait;
+use Symfony\Component\Cache\Traits\Relay\GeosearchTrait;
+use Symfony\Component\Cache\Traits\Relay\GetrangeTrait;
+use Symfony\Component\Cache\Traits\Relay\HsetTrait;
+use Symfony\Component\Cache\Traits\Relay\MoveTrait;
+use Symfony\Component\Cache\Traits\Relay\NullableReturnTrait;
+use Symfony\Component\Cache\Traits\Relay\PfcountTrait;
 use Symfony\Component\VarExporter\LazyObjectInterface;
 use Symfony\Contracts\Service\ResetInterface;
 
@@ -24,9 +31,17 @@ class_exists(\Symfony\Component\VarExporter\Internal\LazyObjectState::class);
  */
 class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInterface
 {
+    use CopyTrait;
+    use GeosearchTrait;
+    use GetrangeTrait;
+    use HsetTrait;
+    use MoveTrait;
+    use NullableReturnTrait;
+    use PfcountTrait;
     use RedisProxyTrait {
         resetLazyObject as reset;
     }
+    use RelayProxyTrait;
 
     public function __construct($host = null, $port = 6379, $connect_timeout = 0.0, $command_timeout = 0.0, #[\SensitiveParameter] $context = [], $database = 0)
     {
@@ -263,11 +278,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
         return $this->initializeLazyObject()->dbsize(...\func_get_args());
     }
 
-    public function dump($key): \Relay\Relay|false|string
-    {
-        return $this->initializeLazyObject()->dump(...\func_get_args());
-    }
-
     public function replicaof($host = null, $port = 0): \Relay\Relay|bool
     {
         return $this->initializeLazyObject()->replicaof(...\func_get_args());
@@ -286,11 +296,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
     public function migrate($host, $port, $key, $dstdb, $timeout, $copy = false, $replace = false, #[\SensitiveParameter] $credentials = null): \Relay\Relay|bool
     {
         return $this->initializeLazyObject()->migrate(...\func_get_args());
-    }
-
-    public function copy($src, $dst, $options = null): \Relay\Relay|false|int
-    {
-        return $this->initializeLazyObject()->copy(...\func_get_args());
     }
 
     public function echo($arg): \Relay\Relay|bool|string
@@ -393,11 +398,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
         return $this->initializeLazyObject()->geoadd(...\func_get_args());
     }
 
-    public function geodist($key, $src, $dst, $unit = null): \Relay\Relay|false|float
-    {
-        return $this->initializeLazyObject()->geodist(...\func_get_args());
-    }
-
     public function geohash($key, $member, ...$other_members): \Relay\Relay|array|false
     {
         return $this->initializeLazyObject()->geohash(...\func_get_args());
@@ -423,11 +423,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
         return $this->initializeLazyObject()->georadius_ro(...\func_get_args());
     }
 
-    public function geosearch($key, $position, $shape, $unit, $options = []): \Relay\Relay|array
-    {
-        return $this->initializeLazyObject()->geosearch(...\func_get_args());
-    }
-
     public function geosearchstore($dst, $src, $position, $shape, $unit, $options = []): \Relay\Relay|false|int
     {
         return $this->initializeLazyObject()->geosearchstore(...\func_get_args());
@@ -441,11 +436,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
     public function getset($key, $value): mixed
     {
         return $this->initializeLazyObject()->getset(...\func_get_args());
-    }
-
-    public function getrange($key, $start, $end): \Relay\Relay|false|string
-    {
-        return $this->initializeLazyObject()->getrange(...\func_get_args());
     }
 
     public function setrange($key, $start, $value): \Relay\Relay|false|int
@@ -526,11 +516,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
     public function pfadd($key, $elements): \Relay\Relay|false|int
     {
         return $this->initializeLazyObject()->pfadd(...\func_get_args());
-    }
-
-    public function pfcount($key): \Relay\Relay|false|int
-    {
-        return $this->initializeLazyObject()->pfcount(...\func_get_args());
     }
 
     public function pfmerge($dst, $srckeys): \Relay\Relay|bool
@@ -641,16 +626,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
     public function type($key): \Relay\Relay|bool|int|string
     {
         return $this->initializeLazyObject()->type(...\func_get_args());
-    }
-
-    public function lmove($srckey, $dstkey, $srcpos, $dstpos): \Relay\Relay|false|null|string
-    {
-        return $this->initializeLazyObject()->lmove(...\func_get_args());
-    }
-
-    public function blmove($srckey, $dstkey, $srcpos, $dstpos, $timeout): \Relay\Relay|false|null|string
-    {
-        return $this->initializeLazyObject()->blmove(...\func_get_args());
     }
 
     public function lrange($key, $start, $stop): \Relay\Relay|array|false
@@ -808,11 +783,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
         return $this->initializeLazyObject()->hmget(...\func_get_args());
     }
 
-    public function hrandfield($hash, $options = null): \Relay\Relay|array|false|string
-    {
-        return $this->initializeLazyObject()->hrandfield(...\func_get_args());
-    }
-
     public function hmset($hash, $members): \Relay\Relay|bool
     {
         return $this->initializeLazyObject()->hmset(...\func_get_args());
@@ -826,11 +796,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
     public function hsetnx($hash, $member, $value): \Relay\Relay|bool
     {
         return $this->initializeLazyObject()->hsetnx(...\func_get_args());
-    }
-
-    public function hset($key, $mem, $val, ...$kvals): \Relay\Relay|false|int
-    {
-        return $this->initializeLazyObject()->hset(...\func_get_args());
     }
 
     public function hdel($key, $mem, ...$mems): \Relay\Relay|false|int
@@ -1098,11 +1063,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
         return $this->initializeLazyObject()->xack(...\func_get_args());
     }
 
-    public function xadd($key, $id, $values, $maxlen = 0, $approx = false, $nomkstream = false): \Relay\Relay|false|string
-    {
-        return $this->initializeLazyObject()->xadd(...\func_get_args());
-    }
-
     public function xclaim($key, $group, $consumer, $min_idle, $ids, $options): \Relay\Relay|array|bool
     {
         return $this->initializeLazyObject()->xclaim(...\func_get_args());
@@ -1208,16 +1168,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
         return $this->initializeLazyObject()->zrevrangebylex(...\func_get_args());
     }
 
-    public function zrank($key, $rank, $withscore = false): \Relay\Relay|array|false|int
-    {
-        return $this->initializeLazyObject()->zrank(...\func_get_args());
-    }
-
-    public function zrevrank($key, $rank, $withscore = false): \Relay\Relay|array|false|int
-    {
-        return $this->initializeLazyObject()->zrevrank(...\func_get_args());
-    }
-
     public function zrem($key, ...$args): \Relay\Relay|false|int
     {
         return $this->initializeLazyObject()->zrem(...\func_get_args());
@@ -1271,11 +1221,6 @@ class RelayProxy extends \Relay\Relay implements ResetInterface, LazyObjectInter
     public function zmscore($key, ...$mems): \Relay\Relay|array|false
     {
         return $this->initializeLazyObject()->zmscore(...\func_get_args());
-    }
-
-    public function zscore($key, $member): \Relay\Relay|false|float
-    {
-        return $this->initializeLazyObject()->zscore(...\func_get_args());
     }
 
     public function zinter($keys, $weights = null, $options = null): \Relay\Relay|array|false

@@ -92,7 +92,7 @@ END'],
         $this->assertSame($expected, (string) $instance);
     }
 
-    public function provideCreateFromCodePoint(): array
+    public static function provideCreateFromCodePoint(): array
     {
         return [
             ['', []],
@@ -663,6 +663,15 @@ END'],
                 ['symfony_ist_äußerst_cool', 'symfonyIstÄußerstCool'],
             ]
         );
+    }
+
+    public static function provideKebab(): array
+    {
+        return [
+            ...parent::provideKebab(),
+            ['symfony-ist-äußerst-cool', 'symfonyIstÄußerstCool'],
+            ['symfony-with-emojis', 'Symfony with 😃 emojis'],
+        ];
     }
 
     public static function provideEqualsTo()

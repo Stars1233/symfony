@@ -12,18 +12,23 @@
 namespace Symfony\Component\Validator\Tests\Constraints;
 
 use Symfony\Component\Validator\Constraint;
-use Symfony\Component\Validator\Constraints\AbstractComparison;
+use Symfony\Component\Validator\Constraints\LessThanOrEqualValidator;
 use Symfony\Component\Validator\Constraints\NegativeOrZero;
 use Symfony\Component\Validator\Exception\ConstraintDefinitionException;
 
 /**
  * @author Jan Schädlich <jan.schaedlich@sensiolabs.de>
  */
-class LessThanOrEqualValidatorWithNegativeOrZeroConstraintTest extends LessThanOrEqualValidatorTest
+class LessThanOrEqualValidatorWithNegativeOrZeroConstraintTest extends AbstractComparisonValidatorTestCase
 {
+    protected function createValidator(): LessThanOrEqualValidator
+    {
+        return new LessThanOrEqualValidator();
+    }
+
     protected static function createConstraint(?array $options = null): Constraint
     {
-        return new NegativeOrZero();
+        return new NegativeOrZero($options);
     }
 
     public static function provideValidComparisons(): array
@@ -34,6 +39,14 @@ class LessThanOrEqualValidatorWithNegativeOrZeroConstraintTest extends LessThanO
             [-2, 0],
             [-2.5, 0],
             [null, 0],
+        ];
+    }
+
+    public static function provideValidComparisonsToPropertyPath(): array
+    {
+        return [
+            [4],
+            [5],
         ];
     }
 
@@ -89,22 +102,6 @@ class LessThanOrEqualValidatorWithNegativeOrZeroConstraintTest extends LessThanO
      * @dataProvider provideValidComparisonsToPropertyPath
      */
     public function testValidComparisonToPropertyPath($comparedValue)
-    {
-        $this->markTestSkipped('PropertyPath option is not used in NegativeOrZero constraint');
-    }
-
-    /**
-     * @dataProvider throwsOnInvalidStringDatesProvider
-     */
-    public function testThrowsOnInvalidStringDates(AbstractComparison $constraint, $expectedMessage, $value)
-    {
-        $this->markTestSkipped('The compared value cannot be an invalid string date because it is hardcoded to 0.');
-    }
-
-    /**
-     * @dataProvider provideComparisonsToNullValueAtPropertyPath
-     */
-    public function testCompareWithNullValueAtPropertyAt($dirtyValue, $dirtyValueAsString, $isValid)
     {
         $this->markTestSkipped('PropertyPath option is not used in NegativeOrZero constraint');
     }

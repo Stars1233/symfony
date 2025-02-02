@@ -11,10 +11,10 @@
 
 namespace Symfony\Component\Messenger\Bridge\Doctrine\Tests\Transport;
 
+use Doctrine\DBAL\Configuration;
 use Doctrine\DBAL\Connection as DBALConnection;
 use Doctrine\DBAL\Exception as DBALException;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
-use Doctrine\DBAL\Platforms\MariaDb1060Platform;
 use Doctrine\DBAL\Platforms\MariaDBPlatform;
 use Doctrine\DBAL\Platforms\MySQL57Platform;
 use Doctrine\DBAL\Platforms\MySQL80Platform;
@@ -308,7 +308,7 @@ class ConnectionTest extends TestCase
             $platform->method('getWriteLockSQL')->willReturn('FOR UPDATE SKIP LOCKED');
         }
 
-        $configuration = $this->createMock(\Doctrine\DBAL\Configuration::class);
+        $configuration = $this->createMock(Configuration::class);
         $driverConnection->method('getDatabasePlatform')->willReturn($platform);
         $driverConnection->method('getConfiguration')->willReturn($configuration);
 
@@ -590,9 +590,16 @@ class ConnectionTest extends TestCase
             'SELECT m.* FROM messenger_messages m WHERE (m.queue_name = ?) AND (m.delivered_at is null OR m.delivered_at < ?) AND (m.available_at <= ?) ORDER BY available_at ASC LIMIT 1 FOR UPDATE',
         ];
 
-        if (class_exists(MariaDb1060Platform::class)) {
+        if (interface_exists(DBALException::class)) {
+            // DBAL 4+
+            $mariaDbPlatformClass = 'Doctrine\DBAL\Platforms\MariaDB1060Platform';
+        } else {
+            $mariaDbPlatformClass = 'Doctrine\DBAL\Platforms\MariaDb1060Platform';
+        }
+
+        if (class_exists($mariaDbPlatformClass)) {
             yield 'MariaDB106' => [
-                new MariaDb1060Platform(),
+                new $mariaDbPlatformClass(),
                 'SELECT m.* FROM messenger_messages m WHERE (m.queue_name = ?) AND (m.delivered_at is null OR m.delivered_at < ?) AND (m.available_at <= ?) ORDER BY available_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED',
             ];
         }
@@ -720,7 +727,7 @@ class ConnectionTest extends TestCase
         $connection->findAll(50);
     }
 
-    public function provideFindAllSqlGeneratedByPlatform(): iterable
+    public static function provideFindAllSqlGeneratedByPlatform(): iterable
     {
         yield 'MySQL' => [
             class_exists(MySQLPlatform::class) ? new MySQLPlatform() : new MySQL57Platform(),
@@ -750,5 +757,22 @@ class ConnectionTest extends TestCase
                 'SELECT a.* FROM (SELECT m.id AS "id", m.body AS "body", m.headers AS "headers", m.queue_name AS "queue_name", m.created_at AS "created_at", m.available_at AS "available_at", m.delivered_at AS "delivered_at" FROM messenger_messages m WHERE (m.queue_name = ?) AND (m.delivered_at is null OR m.delivered_at < ?) AND (m.available_at <= ?)) a WHERE ROWNUM <= 50',
             ];
         }
+    }
+
+    public function testConfigureSchemaOracleSequenceNameSuffixed()
+    {
+        $driverConnection = $this->createMock(DBALConnection::class);
+        $driverConnection->method('getDatabasePlatform')->willReturn(new OraclePlatform());
+        $schema = new Schema();
+
+        $connection = new Connection(['table_name' => 'messenger_messages'], $driverConnection);
+        $connection->configureSchema($schema, $driverConnection, fn () => true);
+
+        $expectedSuffix = '_seq';
+        $sequences = $schema->getSequences();
+        $this->assertCount(1, $sequences);
+        $sequence = array_pop($sequences);
+        $sequenceNameSuffix = substr($sequence->getName(), -strlen($expectedSuffix));
+        $this->assertSame($expectedSuffix, $sequenceNameSuffix);
     }
 }

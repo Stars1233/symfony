@@ -50,7 +50,7 @@ class AutowirePass extends AbstractRecursivePass
     public function __construct(
         private bool $throwOnAutowiringException = true,
     ) {
-        $this->defaultArgument = new class() {
+        $this->defaultArgument = new class {
             public $value;
             public $names;
             public $bag;
@@ -689,9 +689,8 @@ class AutowirePass extends AbstractRecursivePass
             for ($i = 0, --$len; $i < $len; ++$i) {
                 $message .= \sprintf('%s "%s", ', class_exists($aliases[$i], false) ? 'class' : 'interface', $aliases[$i]);
             }
-            $message .= \sprintf('or %s "%s".', class_exists($aliases[$i], false) ? 'class' : 'interface', $aliases[$i]);
 
-            return $message;
+            return $message.\sprintf('or %s "%s".', class_exists($aliases[$i], false) ? 'class' : 'interface', $aliases[$i]);
         }
 
         if ($aliases) {

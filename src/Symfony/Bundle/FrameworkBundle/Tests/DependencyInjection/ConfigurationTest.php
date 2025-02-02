@@ -26,10 +26,12 @@ use Symfony\Component\Mailer\Mailer;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Notifier\Notifier;
 use Symfony\Component\RateLimiter\Policy\TokenBucketLimiter;
+use Symfony\Component\RemoteEvent\RemoteEvent;
 use Symfony\Component\Scheduler\Messenger\SchedulerTransportFactory;
 use Symfony\Component\Serializer\Encoder\JsonDecode;
 use Symfony\Component\TypeInfo\Type;
 use Symfony\Component\Uid\Factory\UuidFactory;
+use Symfony\Component\Webhook\Controller\WebhookController;
 
 class ConfigurationTest extends TestCase
 {
@@ -567,6 +569,72 @@ class ConfigurationTest extends TestCase
         ]);
     }
 
+    public function testSerializerJsonDetailedErrorMessagesEnabledWhenDefaultContextIsConfigured()
+    {
+        $processor = new Processor();
+        $config = $processor->processConfiguration(new Configuration(true), [
+            [
+                'http_method_override' => false,
+                'handle_all_throwables' => true,
+                'php_errors' => ['log' => true],
+                'serializer' => [
+                    'default_context' => [
+                        'foo' => 'bar',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(['foo' => 'bar', JsonDecode::DETAILED_ERROR_MESSAGES => true], $config['serializer']['default_context'] ?? []);
+    }
+
+    public function testSerializerJsonDetailedErrorMessagesInDefaultContextCanBeDisabled()
+    {
+        $processor = new Processor();
+        $config = $processor->processConfiguration(new Configuration(true), [
+            [
+                'http_method_override' => false,
+                'handle_all_throwables' => true,
+                'php_errors' => ['log' => true],
+                'serializer' => [
+                    'default_context' => [
+                        'foo' => 'bar',
+                        JsonDecode::DETAILED_ERROR_MESSAGES => false,
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(['foo' => 'bar', JsonDecode::DETAILED_ERROR_MESSAGES => false], $config['serializer']['default_context'] ?? []);
+    }
+
+    public function testSerializerJsonDetailedErrorMessagesInDefaultContextCanBeDisabledWithSeveralConfigsBeingMerged()
+    {
+        $processor = new Processor();
+        $config = $processor->processConfiguration(new Configuration(true), [
+            [
+                'http_method_override' => false,
+                'handle_all_throwables' => true,
+                'php_errors' => ['log' => true],
+                'serializer' => [
+                    'default_context' => [
+                        'foo' => 'bar',
+                        JsonDecode::DETAILED_ERROR_MESSAGES => false,
+                    ],
+                ],
+            ],
+            [
+                'serializer' => [
+                    'default_context' => [
+                        'foobar' => 'baz',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(['foo' => 'bar', JsonDecode::DETAILED_ERROR_MESSAGES => false, 'foobar' => 'baz'], $config['serializer']['default_context'] ?? []);
+    }
+
     public function testScopedHttpClientsInheritRateLimiterAndRetryFailedConfiguration()
     {
         $processor = new Processor();
@@ -607,32 +675,58 @@ class ConfigurationTest extends TestCase
         $this->assertSame(999, $scopedClients['qux']['retry_failed']['delay']);
     }
 
+    public function testSerializerJsonDetailedErrorMessagesEnabledByDefaultWithDebugEnabled()
+    {
+        $processor = new Processor();
+        $config = $processor->processConfiguration(new Configuration(true), [
+            [
+                'serializer' => null,
+            ],
+        ]);
+
+        $this->assertSame([JsonDecode::DETAILED_ERROR_MESSAGES => true], $config['serializer']['default_context'] ?? []);
+    }
+
+    public function testSerializerJsonDetailedErrorMessagesNotSetByDefaultWithDebugDisabled()
+    {
+        $processor = new Processor();
+        $config = $processor->processConfiguration(new Configuration(false), [
+            [
+                'serializer' => null,
+            ],
+        ]);
+
+        $this->assertSame([], $config['serializer']['default_context'] ?? []);
+    }
+
     protected static function getBundleDefaultConfig()
     {
         return [
             'http_method_override' => false,
             'handle_all_throwables' => true,
-            'trust_x_sendfile_type_header' => false,
+            'trust_x_sendfile_type_header' => '%env(bool:default::SYMFONY_TRUST_X_SENDFILE_TYPE_HEADER)%',
             'ide' => '%env(default::SYMFONY_IDE)%',
             'default_locale' => 'en',
             'enabled_locales' => [],
             'set_locale_from_accept_language' => false,
             'set_content_language_from_locale' => false,
             'secret' => 's3cr3t',
-            'trusted_hosts' => [],
-            'trusted_headers' => [
-                'x-forwarded-for',
-                'x-forwarded-port',
-                'x-forwarded-proto',
-            ],
+            'trusted_hosts' => ['%env(default::SYMFONY_TRUSTED_HOSTS)%'],
+            'trusted_proxies' => ['%env(default::SYMFONY_TRUSTED_PROXIES)%'],
+            'trusted_headers' => ['%env(default::SYMFONY_TRUSTED_HEADERS)%'],
             'csrf_protection' => [
-                'enabled' => false,
+                'enabled' => null,
+                'cookie_name' => 'csrf-token',
+                'check_header' => false,
+                'stateless_token_ids' => [],
             ],
             'form' => [
                 'enabled' => !class_exists(FullStack::class),
                 'csrf_protection' => [
                     'enabled' => null, // defaults to csrf_protection.enabled
                     'field_name' => '_token',
+                    'field_attr' => ['data-controller' => 'csrf-protection'],
+                    'token_id' => null,
                 ],
             ],
             'esi' => ['enabled' => false],
@@ -692,6 +786,7 @@ class ConfigurationTest extends TestCase
                 'enabled' => true,
                 'enable_attributes' => !class_exists(FullStack::class),
                 'mapping' => ['paths' => []],
+                'named_serializers' => [],
             ],
             'property_access' => [
                 'enabled' => true,
@@ -722,7 +817,6 @@ class ConfigurationTest extends TestCase
                 'cookie_httponly' => true,
                 'cookie_samesite' => 'lax',
                 'cookie_secure' => 'auto',
-                'gc_probability' => 1,
                 'metadata_update_threshold' => 0,
             ],
             'request' => [
@@ -858,13 +952,30 @@ class ConfigurationTest extends TestCase
             ],
             'exceptions' => [],
             'webhook' => [
-                'enabled' => false,
+                'enabled' => !class_exists(FullStack::class) && class_exists(WebhookController::class),
                 'routing' => [],
                 'message_bus' => 'messenger.default_bus',
             ],
             'remote-event' => [
-                'enabled' => false,
+                'enabled' => !class_exists(FullStack::class) && class_exists(RemoteEvent::class),
             ],
         ];
+    }
+
+    public function testNamedSerializersReservedName()
+    {
+        $processor = new Processor();
+        $configuration = new Configuration(true);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('Invalid configuration for path "framework.serializer.named_serializers": "default" is a reserved name.');
+
+        $processor->processConfiguration($configuration, [[
+            'serializer' => [
+                'named_serializers' => [
+                    'default' => ['include_built_in_normalizers' => false],
+                ],
+            ],
+        ]]);
     }
 }

@@ -112,13 +112,21 @@ class UnsupportedSchemeException extends LogicException
             'class' => Bridge\Isendpro\IsendproTransportFactory::class,
             'package' => 'symfony/isendpro-notifier',
         ],
+        'jolinotif' => [
+            'class' => Bridge\JoliNotif\JoliNotifTransportFactory::class,
+            'package' => 'symfony/joli-notif-notifier',
+        ],
         'kaz-info-teh' => [
             'class' => Bridge\KazInfoTeh\KazInfoTehTransportFactory::class,
-            'package' => 'symfony/symfony/kaz-info-teh-notifier',
+            'package' => 'symfony/kaz-info-teh-notifier',
         ],
         'lightsms' => [
             'class' => Bridge\LightSms\LightSmsTransportFactory::class,
             'package' => 'symfony/light-sms-notifier',
+        ],
+        'linebot' => [
+            'class' => Bridge\LineBot\LineBotTransportFactory::class,
+            'package' => 'symfony/line-bot-notifier',
         ],
         'linenotify' => [
             'class' => Bridge\LineNotify\LineNotifyTransportFactory::class,
@@ -287,6 +295,10 @@ class UnsupportedSchemeException extends LogicException
         'spothit' => [
             'class' => Bridge\SpotHit\SpotHitTransportFactory::class,
             'package' => 'symfony/spot-hit-notifier',
+        ],
+        'sweego' => [
+            'class' => Bridge\Sweego\SweegoTransportFactory::class,
+            'package' => 'symfony/sweego-notifier',
         ],
         'telegram' => [
             'class' => Bridge\Telegram\TelegramTransportFactory::class,

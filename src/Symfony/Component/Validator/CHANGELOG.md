@@ -9,6 +9,10 @@ CHANGELOG
  * Add the `Yaml` constraint for validating YAML content
  * Add `errorPath` to Unique constraint
  * Add the `format` option to the `Ulid` constraint to allow accepting different ULID formats
+ * Add the `WordCount` constraint
+ * Add the `Week` constraint
+ * Add `CompoundConstraintTestCase` to ease testing Compound Constraints
+ * Add context variable to `WhenValidator`
 
 7.1
 ---

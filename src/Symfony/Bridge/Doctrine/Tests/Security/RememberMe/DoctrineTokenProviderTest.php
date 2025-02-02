@@ -9,7 +9,7 @@
  * file that was distributed with this source code.
  */
 
-namespace Security\RememberMe;
+namespace Symfony\Bridge\Doctrine\Tests\Security\RememberMe;
 
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Schema\DefaultSchemaManagerFactory;
@@ -117,7 +117,7 @@ class DoctrineTokenProviderTest extends TestCase
         $this->assertFalse($provider->verifyToken($token, $oldValue));
     }
 
-    private function bootstrapProvider(): DoctrineTokenProvider
+    protected function bootstrapProvider(): DoctrineTokenProvider
     {
         $config = ORMSetup::createConfiguration(true);
         $config->setSchemaManagerFactory(new DefaultSchemaManagerFactory());

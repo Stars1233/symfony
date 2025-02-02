@@ -346,7 +346,7 @@ class ExpressionLanguageTest extends TestCase
 
     public static function provideNullSafe()
     {
-        $foo = new class() extends \stdClass {
+        $foo = new class extends \stdClass {
             public function bar()
             {
                 return null;
@@ -437,7 +437,7 @@ class ExpressionLanguageTest extends TestCase
 
     public static function provideNullCoalescing()
     {
-        $foo = new class() extends \stdClass {
+        $foo = new class extends \stdClass {
             public function bar()
             {
                 return null;
@@ -551,5 +551,12 @@ class ExpressionLanguageTest extends TestCase
                 },
             ],
         ];
+    }
+
+    public function testParseAlreadyParsedExpressionReturnsSameObject()
+    {
+        $el = new ExpressionLanguage();
+        $parsed = $el->parse('1 + 1', []);
+        $this->assertSame($parsed, $el->parse($parsed, []));
     }
 }

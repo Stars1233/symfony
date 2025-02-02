@@ -92,6 +92,7 @@ abstract class FileLoader extends BaseFileLoader
             }
         } finally {
             --$this->importing;
+            $this->loadExtensionConfigs();
         }
 
         return null;
@@ -160,7 +161,7 @@ abstract class FileLoader extends BaseFileLoader
                     $notWhenAttributes = $r->getAttributes(WhenNot::class, \ReflectionAttribute::IS_INSTANCEOF);
 
                     if ($whenAttributes && $notWhenAttributes) {
-                        throw new LogicException(sprintf('The "%s" class cannot have both #[When] and #[WhenNot] attributes.', $class));
+                        throw new LogicException(\sprintf('The "%s" class cannot have both #[When] and #[WhenNot] attributes.', $class));
                     }
 
                     if (!$whenAttributes && !$notWhenAttributes) {

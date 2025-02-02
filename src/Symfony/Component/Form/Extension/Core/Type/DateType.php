@@ -49,7 +49,7 @@ class DateType extends AbstractType
     {
         $dateFormat = \is_int($options['format']) ? $options['format'] : self::DEFAULT_FORMAT;
         $timeFormat = \IntlDateFormatter::NONE;
-        $calendar = \IntlDateFormatter::GREGORIAN;
+        $calendar = $options['calendar'] ?? \IntlDateFormatter::GREGORIAN;
         $pattern = \is_string($options['format']) ? $options['format'] : '';
 
         if (!\in_array($dateFormat, self::ACCEPTED_FORMATS, true)) {
@@ -120,16 +120,10 @@ class DateType extends AbstractType
                 \Locale::getDefault(),
                 $dateFormat,
                 $timeFormat,
-                // see https://bugs.php.net/66323
-                class_exists(\IntlTimeZone::class, false) ? \IntlTimeZone::createDefault() : null,
+                null,
                 $calendar,
                 $pattern
             );
-
-            // new \IntlDateFormatter may return null instead of false in case of failure, see https://bugs.php.net/66323
-            if (!$formatter) {
-                throw new InvalidOptionsException(intl_get_error_message(), intl_get_error_code());
-            }
 
             $formatter->setLenient(false);
 
@@ -255,10 +249,8 @@ class DateType extends AbstractType
 
         $choiceTranslationDomainNormalizer = static function (Options $options, $choiceTranslationDomain) {
             if (\is_array($choiceTranslationDomain)) {
-                $default = false;
-
                 return array_replace(
-                    ['year' => $default, 'month' => $default, 'day' => $default],
+                    ['year' => false, 'month' => false, 'day' => false],
                     $choiceTranslationDomain
                 );
             }
@@ -281,6 +273,7 @@ class DateType extends AbstractType
             'format' => $format,
             'model_timezone' => null,
             'view_timezone' => null,
+            'calendar' => null,
             'placeholder' => $placeholderDefault,
             'html5' => true,
             // Don't modify \DateTime classes by reference, we treat
@@ -320,6 +313,9 @@ class DateType extends AbstractType
         $resolver->setAllowedTypes('months', 'array');
         $resolver->setAllowedTypes('days', 'array');
         $resolver->setAllowedTypes('input_format', 'string');
+        $resolver->setAllowedTypes('calendar', ['null', 'int', \IntlCalendar::class]);
+
+        $resolver->setInfo('calendar', 'The calendar to use for formatting and parsing the date. The value should be an instance of \IntlCalendar. By default, the Gregorian calendar with the default locale is used.');
 
         $resolver->setNormalizer('html5', static function (Options $options, $html5) {
             if ($html5 && 'single_text' === $options['widget'] && self::HTML5_FORMAT !== $options['format']) {

@@ -22,16 +22,9 @@ use Symfony\Component\TypeInfo\TypeIdentifier;
  *
  * @author Mathias Arlaud <mathias.arlaud@gmail.com>
  * @author Baptiste Leduc <baptiste.leduc@gmail.com>
- *
- * @internal
  */
 final class ReflectionTypeResolver implements TypeResolverInterface
 {
-    /**
-     * @var array<class-string, \ReflectionEnum>
-     */
-    private static array $reflectionEnumCache = [];
-
     public function resolve(mixed $subject, ?TypeContext $typeContext = null): Type
     {
         if ($subject instanceof \ReflectionUnionType) {
@@ -83,11 +76,7 @@ final class ReflectionTypeResolver implements TypeResolverInterface
             default => $identifier,
         };
 
-        if (is_subclass_of($className, \BackedEnum::class)) {
-            $reflectionEnum = (self::$reflectionEnumCache[$className] ??= new \ReflectionEnum($className));
-            $backingType = $this->resolve($reflectionEnum->getBackingType(), $typeContext);
-            $type = Type::enum($className, $backingType);
-        } elseif (is_subclass_of($className, \UnitEnum::class)) {
+        if (is_subclass_of($className, \UnitEnum::class)) {
             $type = Type::enum($className);
         } else {
             $type = Type::object($className);

@@ -587,6 +587,16 @@ class XmlFileLoaderTest extends TestCase
         $this->assertEquals($expectedRoutes('xml'), $routes);
     }
 
+    public function testAddingRouteWithHosts()
+    {
+        $loader = new XmlFileLoader(new FileLocator([__DIR__.'/../Fixtures/locale_and_host']));
+        $routes = $loader->load('route-with-hosts.xml');
+
+        $expectedRoutes = require __DIR__.'/../Fixtures/locale_and_host/route-with-hosts-expected-collection.php';
+
+        $this->assertEquals($expectedRoutes('xml'), $routes);
+    }
+
     public function testWhenEnv()
     {
         $loader = new XmlFileLoader(new FileLocator([__DIR__.'/../Fixtures']), 'some-env');
@@ -616,8 +626,8 @@ class XmlFileLoaderTest extends TestCase
         new LoaderResolver([
             $loader = new XmlFileLoader($locator),
             new Psr4DirectoryLoader($locator),
-            new class() extends AttributeClassLoader {
-                protected function configureRoute(Route $route, \ReflectionClass $class, \ReflectionMethod $method, object $annot): void
+            new class extends AttributeClassLoader {
+                protected function configureRoute(Route $route, \ReflectionClass $class, \ReflectionMethod $method, object $attr): void
                 {
                     $route->setDefault('_controller', $class->getName().'::'.$method->getName());
                 }
@@ -641,8 +651,8 @@ class XmlFileLoaderTest extends TestCase
     {
         new LoaderResolver([
             $loader = new XmlFileLoader(new FileLocator(\dirname(__DIR__).'/Fixtures')),
-            new class() extends AttributeClassLoader {
-                protected function configureRoute(Route $route, \ReflectionClass $class, \ReflectionMethod $method, object $annot): void
+            new class extends AttributeClassLoader {
+                protected function configureRoute(Route $route, \ReflectionClass $class, \ReflectionMethod $method, object $attr): void
                 {
                     $route->setDefault('_controller', $class->getName().'::'.$method->getName());
                 }

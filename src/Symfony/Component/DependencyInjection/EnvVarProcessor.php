@@ -151,9 +151,9 @@ class EnvVarProcessor implements EnvVarProcessorInterface, ResetInterface
 
             if ('file' === $prefix) {
                 return file_get_contents($file);
-            } else {
-                return require $file;
             }
+
+            return require $file;
         }
 
         $returnNull = false;
@@ -230,7 +230,7 @@ class EnvVarProcessor implements EnvVarProcessorInterface, ResetInterface
                 return null;
             }
 
-            if (!isset($this->getProvidedTypes()[$prefix])) {
+            if (!isset(static::getProvidedTypes()[$prefix])) {
                 throw new RuntimeException(\sprintf('Unsupported env var prefix "%s".', $prefix));
             }
 
@@ -308,7 +308,13 @@ class EnvVarProcessor implements EnvVarProcessorInterface, ResetInterface
                 throw new RuntimeException(\sprintf('Invalid URL in env var "%s".', $name));
             }
             if (!isset($params['scheme'], $params['host'])) {
-                throw new RuntimeException(\sprintf('Invalid URL env var "%s": schema and host expected, "%s" given.', $name, $env));
+                throw new RuntimeException(\sprintf('Invalid URL in env var "%s": scheme and host expected.', $name));
+            }
+            if (('\\' !== \DIRECTORY_SEPARATOR || 'file' !== $params['scheme']) && false !== ($i = strpos($env, '\\')) && $i < strcspn($env, '?#')) {
+                throw new RuntimeException(\sprintf('Invalid URL in env var "%s": backslashes are not allowed.', $name));
+            }
+            if (\ord($env[0]) <= 32 || \ord($env[-1]) <= 32 || \strlen($env) !== strcspn($env, "\r\n\t")) {
+                throw new RuntimeException(\sprintf('Invalid URL in env var "%s": leading/trailing ASCII control characters or whitespaces are not allowed.', $name));
             }
             $params += [
                 'port' => null,
@@ -374,5 +380,9 @@ class EnvVarProcessor implements EnvVarProcessorInterface, ResetInterface
     {
         $this->loadedVars = [];
         $this->loaders = $this->originalLoaders;
+
+        if ($this->container instanceof Container) {
+            $this->container->resetEnvCache();
+        }
     }
 }

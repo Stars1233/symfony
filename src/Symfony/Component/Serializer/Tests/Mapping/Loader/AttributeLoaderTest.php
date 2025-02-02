@@ -23,6 +23,7 @@ use Symfony\Component\Serializer\Tests\Fixtures\Attributes\AbstractDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\AbstractDummyFirstChild;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\AbstractDummySecondChild;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\AbstractDummyThirdChild;
+use Symfony\Component\Serializer\Tests\Fixtures\Attributes\AccessorishGetters;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\BadAttributeDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\BadMethodContextDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\ContextDummyParent;
@@ -33,7 +34,7 @@ use Symfony\Component\Serializer\Tests\Fixtures\Attributes\GroupDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\GroupDummyParent;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\IgnoreDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\IgnoreDummyAdditionalGetter;
-use Symfony\Component\Serializer\Tests\Fixtures\Attributes\IgnoreDummyAdditionalGetterWithoutIgnoreAnnotations;
+use Symfony\Component\Serializer\Tests\Fixtures\Attributes\IgnoreDummyAdditionalGetterWithoutIgnoreAttributes;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\MaxDepthDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\SerializedNameDummy;
 use Symfony\Component\Serializer\Tests\Fixtures\Attributes\SerializedPathDummy;
@@ -181,7 +182,7 @@ class AttributeLoaderTest extends TestCase
         $this->assertSame(['id'], array_keys($metadata->getAttributesMetadata()));
     }
 
-    public function testIgnoreGetterWithRequiredParameterIfIgnoreAnnotationIsUsed()
+    public function testIgnoreGetterWithRequiredParameterIfIgnoreAttributeIsUsed()
     {
         $classMetadata = new ClassMetadata(IgnoreDummyAdditionalGetter::class);
         $this->getLoaderForContextMapping()->loadClassMetadata($classMetadata);
@@ -191,9 +192,9 @@ class AttributeLoaderTest extends TestCase
         self::assertArrayHasKey('extraValue2', $attributes);
     }
 
-    public function testIgnoreGetterWithRequiredParameterIfIgnoreAnnotationIsNotUsed()
+    public function testIgnoreGetterWithRequiredParameterIfIgnoreAttributeIsNotUsed()
     {
-        $classMetadata = new ClassMetadata(IgnoreDummyAdditionalGetterWithoutIgnoreAnnotations::class);
+        $classMetadata = new ClassMetadata(IgnoreDummyAdditionalGetterWithoutIgnoreAttributes::class);
         $this->getLoaderForContextMapping()->loadClassMetadata($classMetadata);
 
         $attributes = $classMetadata->getAttributesMetadata();
@@ -227,6 +228,22 @@ class AttributeLoaderTest extends TestCase
         $classMetadata = new ClassMetadata(BadAttributeDummy::class);
 
         $this->loader->loadClassMetadata($classMetadata);
+    }
+
+    public function testIgnoresAccessorishGetters()
+    {
+        $classMetadata = new ClassMetadata(AccessorishGetters::class);
+        $this->loader->loadClassMetadata($classMetadata);
+
+        $attributesMetadata = $classMetadata->getAttributesMetadata();
+
+        self::assertCount(4, $classMetadata->getAttributesMetadata());
+
+        self::assertArrayHasKey('field1', $attributesMetadata);
+        self::assertArrayHasKey('field2', $attributesMetadata);
+        self::assertArrayHasKey('field3', $attributesMetadata);
+        self::assertArrayHasKey('field4', $attributesMetadata);
+        self::assertArrayNotHasKey('h', $attributesMetadata);
     }
 
     protected function getLoaderForContextMapping(): AttributeLoader
